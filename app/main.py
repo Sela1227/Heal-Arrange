@@ -13,6 +13,7 @@ from contextlib import asynccontextmanager
 from .config import settings
 from .database import init_db
 from .routers import auth, home, admin
+from .routers import dispatcher, coordinator  # Phase 2 新增
 
 
 @asynccontextmanager
@@ -44,3 +45,5 @@ else:
 app.include_router(home.router)
 app.include_router(auth.router)
 app.include_router(admin.router)
+app.include_router(dispatcher.router)    # Phase 2 新增
+app.include_router(coordinator.router)   # Phase 2 新增
