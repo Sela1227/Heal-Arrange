@@ -4,57 +4,64 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}高檢病人動態系統{% endblock %}</title>
-    
-    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- HTMX -->
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
-    
-    <!-- Alpine.js -->
-    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
-    
-    <style>
-        [x-cloak] { display: none !important; }
-    </style>
-    
     {% block extra_head %}{% endblock %}
 </head>
 <body class="bg-gray-100 min-h-screen">
-    {% block body %}
-    
+{% block body %}
     <!-- 導航欄 -->
-    {% if user %}
     <nav class="bg-blue-600 text-white shadow-lg">
         <div class="max-w-7xl mx-auto px-4">
             <div class="flex justify-between items-center h-14">
-                <div class="flex items-center space-x-4">
-                    <a href="/" class="text-lg font-bold">🏥 高檢病人動態系統</a>
+                <!-- Logo -->
+                <a href="/" class="font-bold text-lg">🏥 高檢追蹤</a>
+                
+                <!-- 角色切換（僅管理員可見） -->
+                {% if user and user.role == 'admin' %}
+                <div class="flex items-center space-x-1">
+                    <span class="text-blue-200 text-xs mr-2">切換視圖:</span>
+                    <a href="/admin" 
+                       class="px-3 py-1 rounded text-sm {% if '/admin' in request.url.path %}bg-blue-800{% else %}hover:bg-blue-700{% endif %}">
+                        👑 管理
+                    </a>
+                    <a href="/dispatcher" 
+                       class="px-3 py-1 rounded text-sm {% if '/dispatcher' in request.url.path %}bg-blue-800{% else %}hover:bg-blue-700{% endif %}">
+                        📋 調度
+                    </a>
+                    <a href="/coordinator" 
+                       class="px-3 py-1 rounded text-sm {% if '/coordinator' in request.url.path %}bg-blue-800{% else %}hover:bg-blue-700{% endif %}">
+                        👤 個管
+                    </a>
                 </div>
-                <div class="flex items-center space-x-4">
-                    <span class="text-sm">
-                        {% if user.picture_url %}
-                        <img src="{{ user.picture_url }}" class="w-8 h-8 rounded-full inline mr-2">
-                        {% endif %}
-                        {{ user.display_name }}
-                        <span class="text-blue-200 text-xs">({{ user.role }})</span>
-                    </span>
-                    <a href="/auth/logout" class="text-sm bg-blue-700 hover:bg-blue-800 px-3 py-1 rounded">
+                {% endif %}
+                
+                <!-- 用戶資訊 -->
+                {% if user %}
+                <div class="flex items-center space-x-3">
+                    <div class="text-right hidden sm:block">
+                        <div class="text-sm font-medium">{{ user.display_name }}</div>
+                        <div class="text-xs text-blue-200">
+                            {% if user.role == 'admin' %}👑 管理員
+                            {% elif user.role == 'dispatcher' %}📋 調度員
+                            {% elif user.role == 'coordinator' %}👤 個管師
+                            {% else %}⏳ {{ user.role }}{% endif %}
+                        </div>
+                    </div>
+                    <a href="/auth/logout" 
+                       class="bg-blue-700 hover:bg-blue-800 px-3 py-1 rounded text-sm">
                         登出
                     </a>
                 </div>
+                {% endif %}
             </div>
         </div>
     </nav>
-    {% endif %}
-    
+
     <!-- 主內容 -->
     <main class="max-w-7xl mx-auto px-4 py-6">
         {% block content %}{% endblock %}
     </main>
-    
-    {% endblock %}
-    
-    {% block extra_js %}{% endblock %}
+{% endblock %}
 </body>
 </html>
