@@ -15,10 +15,49 @@
             <p class="text-gray-500 mt-2">Chang Bing Show Chwan</p>
         </div>
         
-        <!-- 錯誤訊息 -->
-        {% if request.query_params.get('error') %}
-        <div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6">
-            登入失敗，請重試
+        <!-- 提示訊息 -->
+        {% set msg = request.query_params.get('msg', '') %}
+        {% set error = request.query_params.get('error', '') %}
+        
+        {% if msg == 'no_permission' %}
+        <div class="bg-orange-50 border border-orange-200 text-orange-700 px-4 py-3 rounded-lg mb-6 flex items-center">
+            <span class="text-xl mr-3">🔒</span>
+            <div>
+                <div class="font-medium">需要登入</div>
+                <div class="text-sm">請先登入以存取此功能</div>
+            </div>
+        </div>
+        {% elif msg == 'logged_out' %}
+        <div class="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg mb-6 flex items-center">
+            <span class="text-xl mr-3">👋</span>
+            <div>
+                <div class="font-medium">已登出</div>
+                <div class="text-sm">您已成功登出系統</div>
+            </div>
+        </div>
+        {% elif msg == 'session_expired' %}
+        <div class="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-lg mb-6 flex items-center">
+            <span class="text-xl mr-3">⏰</span>
+            <div>
+                <div class="font-medium">登入逾時</div>
+                <div class="text-sm">請重新登入繼續使用</div>
+            </div>
+        </div>
+        {% elif error == 'callback' %}
+        <div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6 flex items-center">
+            <span class="text-xl mr-3">⚠️</span>
+            <div>
+                <div class="font-medium">登入失敗</div>
+                <div class="text-sm">LINE 登入過程發生錯誤，請重試</div>
+            </div>
+        </div>
+        {% elif error %}
+        <div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6 flex items-center">
+            <span class="text-xl mr-3">⚠️</span>
+            <div>
+                <div class="font-medium">發生錯誤</div>
+                <div class="text-sm">請重新嘗試登入</div>
+            </div>
         </div>
         {% endif %}
         
@@ -32,9 +71,16 @@
         </a>
         
         <!-- 說明 -->
-        <p class="text-center text-gray-400 text-sm mt-6">
-            首次登入需等待管理員授權
-        </p>
+        <div class="mt-6 text-center">
+            <p class="text-gray-400 text-sm">首次登入需等待管理員授權</p>
+        </div>
+        
+        <!-- 返回首頁 -->
+        <div class="mt-4 text-center">
+            <a href="/" class="text-blue-500 hover:text-blue-600 text-sm">
+                ← 返回首頁
+            </a>
+        </div>
     </div>
 </body>
 </html>

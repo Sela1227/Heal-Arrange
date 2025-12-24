@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ error_title }} - 高檢病人動態系統</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center">
+    <div class="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md mx-4 text-center">
+        <!-- 錯誤圖示 -->
+        <div class="text-8xl mb-6">
+            {% if error_code == 404 %}
+            🔍
+            {% elif error_code == 403 %}
+            🔒
+            {% elif error_code == 500 %}
+            ⚠️
+            {% else %}
+            😕
+            {% endif %}
+        </div>
+        
+        <!-- 錯誤代碼 -->
+        <div class="text-6xl font-bold text-gray-300 mb-4">{{ error_code }}</div>
+        
+        <!-- 錯誤標題 -->
+        <h1 class="text-2xl font-bold text-gray-800 mb-2">{{ error_title }}</h1>
+        
+        <!-- 錯誤訊息 -->
+        <p class="text-gray-500 mb-8">{{ error_message }}</p>
+        
+        <!-- 操作按鈕 -->
+        <div class="space-y-3">
+            <a href="/" 
+               class="block w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-6 rounded-xl transition">
+                🏠 返回首頁
+            </a>
+            <button onclick="history.back()" 
+                    class="block w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-3 px-6 rounded-xl transition">
+                ← 返回上一頁
+            </button>
+        </div>
+    </div>
+</body>
+</html>
