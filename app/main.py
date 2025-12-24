@@ -3,6 +3,8 @@
 高檢病人動態系統 - FastAPI 入口
 """
 
+import os
+from pathlib import Path
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -31,15 +33,14 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# 靜態檔案
-app.mount("/static", StaticFiles(directory="app/static"), name="static")
+# 靜態檔案 - 確保目錄存在
+static_dir = Path(__file__).parent / "static"
+if static_dir.exists():
+    app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+else:
+    print(f"⚠️ Static directory not found: {static_dir}")
 
 # 註冊路由
 app.include_router(home.router)
 app.include_router(auth.router)
 app.include_router(admin.router)
-
-# TODO: Phase 2 加入
-# from .routers import dispatcher, coordinator
-# app.include_router(dispatcher.router)
-# app.include_router(coordinator.router)

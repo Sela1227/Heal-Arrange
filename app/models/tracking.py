@@ -36,11 +36,10 @@ class CoordinatorAssignment(Base):
     coordinator_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     
     assigned_at = Column(DateTime, default=datetime.utcnow)
-    assigned_by = Column(Integer, ForeignKey("users.id"), nullable=True)  # 指派的調度員
+    assigned_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     
-    is_active = Column(Boolean, default=True)  # 支援交接：舊的標 False
+    is_active = Column(Boolean, default=True)
     
-    # 關聯
     patient = relationship("Patient", foreign_keys=[patient_id])
     coordinator = relationship("User", foreign_keys=[coordinator_id])
     
@@ -56,18 +55,14 @@ class PatientTracking(Base):
     patient_id = Column(Integer, ForeignKey("patients.id"), nullable=False, index=True)
     exam_date = Column(Date, nullable=False, index=True)
     
-    # 目前狀態
-    current_location = Column(String(50), nullable=True)  # 'LOBBY' / 'CT' / 'MRI'...
+    current_location = Column(String(50), nullable=True)
     current_status = Column(String(20), default=TrackingStatus.WAITING.value)
     
-    # 下一站（調度員指派）
     next_exam_code = Column(String(50), nullable=True)
     
-    # 更新資訊
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     updated_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     
-    # 關聯
     patient = relationship("Patient")
     
     def __repr__(self):
@@ -84,14 +79,13 @@ class TrackingHistory(Base):
     
     location = Column(String(50), nullable=True)
     status = Column(String(20), nullable=True)
-    action = Column(String(20), nullable=False)  # assign/arrive/start/complete/handover
+    action = Column(String(20), nullable=False)
     
     timestamp = Column(DateTime, default=datetime.utcnow)
     operator_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     
     notes = Column(Text, nullable=True)
     
-    # 關聯
     patient = relationship("Patient")
     operator = relationship("User")
     
