@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+
+{% block title %}歷史查詢 - 高檢病人動態系統{% endblock %}
+
+{% block content %}
+<div class="mb-6 flex justify-between items-center">
+    <h1 class="text-2xl font-bold text-gray-800">📜 歷史查詢</h1>
+    <a href="/admin/reports" class="text-blue-500 hover:underline">← 返回報表</a>
+</div>
+
+<!-- 查詢條件 -->
+<div class="bg-white rounded-xl shadow p-4 mb-6">
+    <form method="GET" class="flex flex-wrap items-end gap-4">
+        <div>
+            <label class="block text-sm text-gray-600 mb-1">開始日期</label>
+            <input type="date" name="start_date" value="{{ start_date }}"
+                   class="border rounded-lg px-3 py-2">
+        </div>
+        <div>
+            <label class="block text-sm text-gray-600 mb-1">結束日期</label>
+            <input type="date" name="end_date" value="{{ end_date }}"
+                   class="border rounded-lg px-3 py-2">
+        </div>
+        <div>
+            <label class="block text-sm text-gray-600 mb-1">檢查站</label>
+            <select name="exam_code" class="border rounded-lg px-3 py-2">
+                <option value="">全部</option>
+                {% for exam in exams %}
+                <option value="{{ exam.exam_code }}" {% if exam_code == exam.exam_code %}selected{% endif %}>
+                    {{ exam.exam_code }} - {{ exam.name }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+        <button type="submit" 
+                class="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded-lg">
+            🔍 查詢
+        </button>
+    </form>
+</div>
+
+<!-- 快速選擇 -->
+<div class="flex flex-wrap gap-2 mb-4">
+    <a href="/admin/reports/history?start_date={{ end_date }}&end_date={{ end_date }}"
+       class="px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded text-sm">
+        今日
+    </a>
+    <a href="/admin/reports/history"
+       class="px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded text-sm">
+        最近 7 天
+    </a>
+    <a href="/admin/reports/history?days=30"
+       class="px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded text-sm">
+        最近 30 天
+    </a>
+</div>
+
+<!-- 查詢結果 -->
+<div class="bg-white rounded-xl shadow overflow-hidden">
+    <div class="px-4 py-3 bg-gray-50 border-b flex justify-between items-center">
+        <span class="font-bold text-gray-700">查詢結果 ({{ records|length }} 筆)</span>
+        <span class="text-sm text-gray-500">
+            {{ start_date }} ~ {{ end_date }}
+        </span>
+    </div>
+    
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-4 py-3 text-left">時間</th>
+                    <th class="px-4 py-3 text-left">病人</th>
+                    <th class="px-4 py-3 text-left">動作</th>
+                    <th class="px-4 py-3 text-left">位置</th>
+                    <th class="px-4 py-3 text-left">操作人員</th>
+                    <th class="px-4 py-3 text-left">備註</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y">
+                {% for record in records %}
+                <tr class="hover:bg-gray-50">
+                    <td class="px-4 py-3">
+                        <div class="font-medium">{{ record.timestamp.strftime('%m/%d') }}</div>
+                        <div class="text-xs text-gray-400">{{ record.timestamp.strftime('%H:%M:%S') }}</div>
+                    </td>
+                    <td class="px-4 py-3">
+                        <div class="font-medium">{{ record.patient_name }}</div>
+                        <div class="text-xs text-gray-400">{{ record.patient_chart_no }}</div>
+                    </td>
+                    <td class="px-4 py-3">
+                        {% if record.action == 'arrive' %}
+                        <span class="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs">📍 到達</span>
+                        {% elif record.action == 'start' %}
+                        <span class="px-2 py-1 bg-red-100 text-red-700 rounded text-xs">🔬 開始</span>
+                        {% elif record.action == 'complete' %}
+                        <span class="px-2 py-1 bg-green-100 text-green-700 rounded text-xs">✅ 完成</span>
+                        {% elif record.action == 'assign' %}
+                        <span class="px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs">📋 指派</span>
+                        {% else %}
+                        <span class="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs">{{ record.action }}</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-3">
+                        {{ record.location or '-' }}
+                    </td>
+                    <td class="px-4 py-3 text-gray-600">
+                        {{ record.operator_name }}
+                    </td>
+                    <td class="px-4 py-3 text-gray-500 text-xs">
+                        {{ record.notes or '-' }}
+                    </td>
+                </tr>
+                {% endfor %}
+                
+                {% if not records %}
+                <tr>
+                    <td colspan="6" class="px-4 py-12 text-center text-gray-400">
+                        查無資料
+                    </td>
+                </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

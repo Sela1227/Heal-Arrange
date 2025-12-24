@@ -4,6 +4,7 @@
 """
 
 import os
+from datetime import timedelta
 from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
@@ -17,7 +18,7 @@ from .config import settings
 from .database import init_db
 from .routers import auth, home, admin
 from .routers import dispatcher, coordinator
-from .routers import equipment
+from .routers import equipment, reports
 
 
 @asynccontextmanager
@@ -142,6 +143,14 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 
 # =====================
+# Jinja2 全域函數
+# =====================
+
+templates = Jinja2Templates(directory="app/templates")
+templates.env.globals["timedelta"] = timedelta
+
+
+# =====================
 # 靜態檔案
 # =====================
 
@@ -162,3 +171,4 @@ app.include_router(admin.router)
 app.include_router(dispatcher.router)
 app.include_router(coordinator.router)
 app.include_router(equipment.router)
+app.include_router(reports.router)

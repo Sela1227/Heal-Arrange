@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+
+{% block title %}統計報表 - 高檢病人動態系統{% endblock %}
+
+{% block content %}
+<div class="mb-6 flex justify-between items-center">
+    <h1 class="text-2xl font-bold text-gray-800">📊 統計報表</h1>
+    <div class="flex items-center space-x-4">
+        <form method="GET" class="flex items-center space-x-2">
+            <input type="date" name="target_date" value="{{ report_date }}"
+                   class="border rounded-lg px-3 py-2"
+                   onchange="this.form.submit()">
+        </form>
+        <a href="/admin/reports/export/daily?target_date={{ report_date }}"
+           class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg text-sm">
+            📥 匯出 CSV
+        </a>
+    </div>
+</div>
+
+<!-- 日期導航 -->
+<div class="flex items-center space-x-2 mb-6">
+    {% set prev_date = report_date - timedelta(days=1) %}
+    {% set next_date = report_date + timedelta(days=1) %}
+    <a href="/admin/reports?target_date={{ prev_date.isoformat() }}"
+       class="px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded text-sm">
+        ← 前一天
+    </a>
+    <span class="font-bold text-lg text-blue-600">
+        {{ report_date.strftime('%Y年%m月%d日') }}
+        {% if report_date == today %}
+        <span class="text-sm text-green-500">(今日)</span>
+        {% endif %}
+    </span>
+    {% if report_date < today %}
+    <a href="/admin/reports?target_date={{ next_date.isoformat() }}"
+       class="px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded text-sm">
+        後一天 →
+    </a>
+    {% endif %}
+    {% if report_date != today %}
+    <a href="/admin/reports" class="px-3 py-1 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded text-sm ml-4">
+        回到今日
+    </a>
+    {% endif %}
+</div>
+
+<!-- 摘要統計卡片 -->
+<div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8"
+     hx-get="/admin/reports/api/summary?target_date={{ report_date }}"
+     hx-trigger="every 10s"
+     hx-swap="innerHTML">
+    {% include "partials/report_summary.html" %}
+</div>
+
+<!-- 快捷連結 -->
+<div class="flex flex-wrap gap-3 mb-6">
+    <a href="/admin/reports/history" 
+       class="px-4 py-2 bg-purple-100 hover:bg-purple-200 text-purple-700 rounded-lg text-sm">
+        📜 歷史查詢
+    </a>
+    <a href="/admin/reports/trend?days=7"
+       class="px-4 py-2 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg text-sm">
+        📈 7日趨勢
+    </a>
+    <a href="/admin/reports/trend?days=30"
+       class="px-4 py-2 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg text-sm">
+        📈 30日趨勢
+    </a>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <!-- 檢查站統計 -->
+    <div class="bg-white rounded-xl shadow overflow-hidden"
+         hx-get="/admin/reports/api/stations?target_date={{ report_date }}"
+         hx-trigger="every 10s"
+         hx-swap="innerHTML">
+        {% include "partials/station_stats.html" %}
+    </div>
+    
+    <!-- 個管師統計 -->
+    <div class="bg-white rounded-xl shadow overflow-hidden"
+         hx-get="/admin/reports/api/coordinators?target_date={{ report_date }}"
+         hx-trigger="every 10s"
+         hx-swap="innerHTML">
+        {% include "partials/coordinator_stats.html" %}
+    </div>
+</div>
+
+<!-- 返回管理後台 -->
+<div class="mt-8">
+    <a href="/admin" class="text-blue-500 hover:underline">← 返回管理後台</a>
+</div>
+{% endblock %}

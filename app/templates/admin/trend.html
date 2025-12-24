@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+
+{% block title %}趨勢報表 - 高檢病人動態系統{% endblock %}
+
+{% block content %}
+<div class="mb-6 flex justify-between items-center">
+    <h1 class="text-2xl font-bold text-gray-800">📈 趨勢報表</h1>
+    <a href="/admin/reports" class="text-blue-500 hover:underline">← 返回報表</a>
+</div>
+
+<!-- 時間範圍選擇 -->
+<div class="flex flex-wrap gap-2 mb-6">
+    <a href="/admin/reports/trend?days=7"
+       class="px-4 py-2 rounded-lg {% if days == 7 %}bg-blue-500 text-white{% else %}bg-gray-100 hover:bg-gray-200{% endif %}">
+        7 天
+    </a>
+    <a href="/admin/reports/trend?days=14"
+       class="px-4 py-2 rounded-lg {% if days == 14 %}bg-blue-500 text-white{% else %}bg-gray-100 hover:bg-gray-200{% endif %}">
+        14 天
+    </a>
+    <a href="/admin/reports/trend?days=30"
+       class="px-4 py-2 rounded-lg {% if days == 30 %}bg-blue-500 text-white{% else %}bg-gray-100 hover:bg-gray-200{% endif %}">
+        30 天
+    </a>
+</div>
+
+<div class="text-sm text-gray-500 mb-4">
+    📅 {{ start_date }} ~ {{ end_date }}
+</div>
+
+<!-- 趨勢圖表（簡易版 - 使用 CSS） -->
+<div class="bg-white rounded-xl shadow p-6 mb-6">
+    <h3 class="font-bold text-gray-700 mb-4">每日病人數 & 完成率</h3>
+    
+    <!-- 簡易長條圖 -->
+    <div class="space-y-3">
+        {% for summary in daily_summaries %}
+        <div class="flex items-center">
+            <div class="w-20 text-sm text-gray-500">
+                {{ summary.date.strftime('%m/%d') }}
+            </div>
+            <div class="flex-1 flex items-center space-x-2">
+                <!-- 病人數長條 -->
+                <div class="flex-1 bg-gray-100 rounded-full h-6 relative">
+                    {% set max_patients = daily_summaries|map(attribute='patients.total')|max or 1 %}
+                    {% set width = (summary.patients.total / max_patients * 100)|int %}
+                    <div class="bg-blue-400 h-6 rounded-full flex items-center justify-end pr-2"
+                         style="width: {{ width }}%">
+                        {% if width > 15 %}
+                        <span class="text-xs text-white font-medium">{{ summary.patients.total }}</span>
+                        {% endif %}
+                    </div>
+                    {% if width <= 15 %}
+                    <span class="absolute left-2 top-1 text-xs text-gray-600">{{ summary.patients.total }}</span>
+                    {% endif %}
+                </div>
+                <!-- 完成率 -->
+                <div class="w-16 text-right">
+                    <span class="text-sm {% if summary.patients.completion_rate >= 80 %}text-green-600{% elif summary.patients.completion_rate >= 50 %}text-yellow-600{% else %}text-red-600{% endif %} font-medium">
+                        {{ summary.patients.completion_rate }}%
+                    </span>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    
+    <div class="flex justify-end mt-4 text-xs text-gray-400">
+        <span class="mr-4">🔵 病人數</span>
+        <span>% 完成率</span>
+    </div>
+</div>
+
+<!-- 統計摘要 -->
+<div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+    {% set total_patients = daily_summaries|map(attribute='patients.total')|sum %}
+    {% set total_completed = daily_summaries|map(attribute='patients.completed')|sum %}
+    {% set avg_patients = (total_patients / days)|round(1) %}
+    {% set avg_completion = (total_completed / total_patients * 100)|round(1) if total_patients > 0 else 0 %}
+    
+    <div class="bg-white rounded-xl shadow p-4">
+        <div class="text-2xl font-bold text-blue-600">{{ total_patients }}</div>
+        <div class="text-sm text-gray-500">總病人數</div>
+    </div>
+    <div class="bg-white rounded-xl shadow p-4">
+        <div class="text-2xl font-bold text-green-600">{{ total_completed }}</div>
+        <div class="text-sm text-gray-500">總完成數</div>
+    </div>
+    <div class="bg-white rounded-xl shadow p-4">
+        <div class="text-2xl font-bold text-purple-600">{{ avg_patients }}</div>
+        <div class="text-sm text-gray-500">日均病人</div>
+    </div>
+    <div class="bg-white rounded-xl shadow p-4">
+        <div class="text-2xl font-bold {% if avg_completion >= 80 %}text-green-600{% else %}text-yellow-600{% endif %}">
+            {{ avg_completion }}%
+        </div>
+        <div class="text-sm text-gray-500">平均完成率</div>
+    </div>
+</div>
+
+<!-- 每日詳細列表 -->
+<div class="bg-white rounded-xl shadow overflow-hidden">
+    <div class="px-4 py-3 bg-gray-50 border-b">
+        <span class="font-bold text-gray-700">每日詳細數據</span>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-4 py-3 text-left">日期</th>
+                    <th class="px-4 py-3 text-center">總病人</th>
+                    <th class="px-4 py-3 text-center">已完成</th>
+                    <th class="px-4 py-3 text-center">進行中</th>
+                    <th class="px-4 py-3 text-center">未開始</th>
+                    <th class="px-4 py-3 text-center">完成率</th>
+                    <th class="px-4 py-3 text-center">設備故障</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y">
+                {% for summary in daily_summaries|reverse %}
+                <tr class="hover:bg-gray-50">
+                    <td class="px-4 py-3 font-medium">
+                        {{ summary.date.strftime('%Y-%m-%d') }}
+                        {% if summary.date == today %}
+                        <span class="text-xs text-green-500">(今日)</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-3 text-center">{{ summary.patients.total }}</td>
+                    <td class="px-4 py-3 text-center text-green-600">{{ summary.patients.completed }}</td>
+                    <td class="px-4 py-3 text-center text-yellow-600">{{ summary.patients.in_progress }}</td>
+                    <td class="px-4 py-3 text-center text-gray-400">{{ summary.patients.not_started }}</td>
+                    <td class="px-4 py-3 text-center">
+                        <span class="px-2 py-1 rounded text-xs font-medium
+                                    {% if summary.patients.completion_rate >= 80 %}bg-green-100 text-green-700
+                                    {% elif summary.patients.completion_rate >= 50 %}bg-yellow-100 text-yellow-700
+                                    {% else %}bg-red-100 text-red-700{% endif %}">
+                            {{ summary.patients.completion_rate }}%
+                        </span>
+                    </td>
+                    <td class="px-4 py-3 text-center">
+                        {% if summary.equipment.broken > 0 %}
+                        <span class="text-red-500">{{ summary.equipment.broken }}</span>
+                        {% else %}
+                        <span class="text-green-500">0</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

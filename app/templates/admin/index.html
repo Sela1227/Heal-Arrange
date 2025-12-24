@@ -4,118 +4,162 @@
 
 {% block content %}
 <div class="mb-6">
-    <h1 class="text-2xl font-bold text-gray-800">⚙️ 管理後台</h1>
+    <h1 class="text-2xl font-bold text-gray-800">🛠️ 管理後台</h1>
+    <p class="text-gray-500 mt-1">系統設定與資料管理</p>
 </div>
 
 <!-- 統計卡片 -->
 <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
     <div class="bg-white rounded-xl shadow p-5">
-        <div class="text-3xl mb-2">👥</div>
-        <div class="text-2xl font-bold text-gray-800">{{ user_count }}</div>
-        <div class="text-gray-500 text-sm">總用戶數</div>
+        <div class="flex items-center justify-between">
+            <div>
+                <div class="text-3xl font-bold text-blue-600">{{ user_count }}</div>
+                <div class="text-gray-500 text-sm">使用者</div>
+            </div>
+            <div class="text-4xl">👥</div>
+        </div>
         {% if pending_count > 0 %}
-        <div class="mt-2 text-orange-500 text-sm">
-            ⚠️ {{ pending_count }} 人等待授權
-        </div>
+        <div class="mt-2 text-orange-500 text-sm">⏳ {{ pending_count }} 人待審核</div>
         {% endif %}
     </div>
     
     <div class="bg-white rounded-xl shadow p-5">
-        <div class="text-3xl mb-2">🏥</div>
-        <div class="text-2xl font-bold text-gray-800">{{ patient_count }}</div>
-        <div class="text-gray-500 text-sm">今日病人</div>
+        <div class="flex items-center justify-between">
+            <div>
+                <div class="text-3xl font-bold text-green-600">{{ patient_count }}</div>
+                <div class="text-gray-500 text-sm">今日病人</div>
+            </div>
+            <div class="text-4xl">🏥</div>
+        </div>
     </div>
     
     <div class="bg-white rounded-xl shadow p-5">
-        <div class="text-3xl mb-2">🔬</div>
-        <div class="text-2xl font-bold text-gray-800">{{ exam_count }}</div>
-        <div class="text-gray-500 text-sm">檢查項目</div>
+        <div class="flex items-center justify-between">
+            <div>
+                <div class="text-3xl font-bold text-purple-600">{{ exam_count }}</div>
+                <div class="text-gray-500 text-sm">檢查項目</div>
+            </div>
+            <div class="text-4xl">🔬</div>
+        </div>
     </div>
     
     <div class="bg-white rounded-xl shadow p-5">
-        <div class="text-3xl mb-2">🖥️</div>
-        <div class="text-2xl font-bold text-gray-800">{{ equipment_count }}</div>
-        <div class="text-gray-500 text-sm">設備數量</div>
+        <div class="flex items-center justify-between">
+            <div>
+                <div class="text-3xl font-bold {% if broken_count > 0 %}text-red-600{% else %}text-green-600{% endif %}">
+                    {{ equipment_count }}
+                </div>
+                <div class="text-gray-500 text-sm">設備數</div>
+            </div>
+            <div class="text-4xl">🖥️</div>
+        </div>
         {% if broken_count > 0 %}
-        <div class="mt-2 text-red-500 text-sm">
-            🔴 {{ broken_count }} 台故障中
-        </div>
+        <div class="mt-2 text-red-500 text-sm">🔴 {{ broken_count }} 台故障</div>
         {% endif %}
     </div>
 </div>
 
-<!-- 快捷功能 -->
-<h2 class="text-lg font-bold text-gray-700 mb-4">📌 快捷功能</h2>
-<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+<!-- 功能區塊 -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    <!-- 帳號管理 -->
     <a href="/admin/users" 
-       class="bg-white rounded-xl shadow p-5 hover:shadow-lg transition flex items-center">
-        <div class="text-3xl mr-4">👥</div>
-        <div>
-            <div class="font-bold text-gray-800">帳號管理</div>
-            <div class="text-sm text-gray-500">設定用戶角色</div>
+       class="bg-white rounded-xl shadow p-6 hover:shadow-lg transition group">
+        <div class="flex items-center mb-4">
+            <div class="text-4xl mr-4 group-hover:scale-110 transition">👥</div>
+            <div>
+                <h3 class="font-bold text-lg text-gray-800">帳號管理</h3>
+                <p class="text-sm text-gray-500">使用者審核與權限設定</p>
+            </div>
         </div>
+        {% if pending_count > 0 %}
+        <div class="bg-orange-50 text-orange-700 px-3 py-2 rounded-lg text-sm">
+            ⏳ {{ pending_count }} 個帳號待審核
+        </div>
+        {% endif %}
     </a>
     
+    <!-- 病人管理 -->
     <a href="/admin/patients" 
-       class="bg-white rounded-xl shadow p-5 hover:shadow-lg transition flex items-center">
-        <div class="text-3xl mr-4">📋</div>
-        <div>
-            <div class="font-bold text-gray-800">病人管理</div>
-            <div class="text-sm text-gray-500">匯入今日名單</div>
+       class="bg-white rounded-xl shadow p-6 hover:shadow-lg transition group">
+        <div class="flex items-center mb-4">
+            <div class="text-4xl mr-4 group-hover:scale-110 transition">📋</div>
+            <div>
+                <h3 class="font-bold text-lg text-gray-800">病人管理</h3>
+                <p class="text-sm text-gray-500">病人資料與 CSV 匯入</p>
+            </div>
         </div>
     </a>
     
+    <!-- 檢查項目管理 -->
     <a href="/admin/exams" 
-       class="bg-white rounded-xl shadow p-5 hover:shadow-lg transition flex items-center">
-        <div class="text-3xl mr-4">🔬</div>
-        <div>
-            <div class="font-bold text-gray-800">檢查項目管理</div>
-            <div class="text-sm text-gray-500">新增/編輯檢查</div>
+       class="bg-white rounded-xl shadow p-6 hover:shadow-lg transition group">
+        <div class="flex items-center mb-4">
+            <div class="text-4xl mr-4 group-hover:scale-110 transition">🔬</div>
+            <div>
+                <h3 class="font-bold text-lg text-gray-800">檢查項目管理</h3>
+                <p class="text-sm text-gray-500">檢查站設定</p>
+            </div>
         </div>
     </a>
     
+    <!-- 設備管理 -->
     <a href="/admin/equipment" 
-       class="bg-white rounded-xl shadow p-5 hover:shadow-lg transition flex items-center">
-        <div class="text-3xl mr-4">🖥️</div>
-        <div>
-            <div class="font-bold text-gray-800">設備管理</div>
-            <div class="text-sm text-gray-500">故障狀態/維修</div>
+       class="bg-white rounded-xl shadow p-6 hover:shadow-lg transition group">
+        <div class="flex items-center mb-4">
+            <div class="text-4xl mr-4 group-hover:scale-110 transition">🖥️</div>
+            <div>
+                <h3 class="font-bold text-lg text-gray-800">設備管理</h3>
+                <p class="text-sm text-gray-500">設備狀態與故障處理</p>
+            </div>
+        </div>
+        {% if broken_count > 0 %}
+        <div class="bg-red-50 text-red-700 px-3 py-2 rounded-lg text-sm">
+            🔴 {{ broken_count }} 台設備故障
+        </div>
+        {% endif %}
+    </a>
+    
+    <!-- 統計報表 -->
+    <a href="/admin/reports" 
+       class="bg-white rounded-xl shadow p-6 hover:shadow-lg transition group">
+        <div class="flex items-center mb-4">
+            <div class="text-4xl mr-4 group-hover:scale-110 transition">📊</div>
+            <div>
+                <h3 class="font-bold text-lg text-gray-800">統計報表</h3>
+                <p class="text-sm text-gray-500">數據分析與匯出</p>
+            </div>
+        </div>
+    </a>
+    
+    <!-- 調度台 -->
+    <a href="/dispatcher" 
+       class="bg-white rounded-xl shadow p-6 hover:shadow-lg transition group border-2 border-blue-100">
+        <div class="flex items-center mb-4">
+            <div class="text-4xl mr-4 group-hover:scale-110 transition">📊</div>
+            <div>
+                <h3 class="font-bold text-lg text-gray-800">前往調度台</h3>
+                <p class="text-sm text-gray-500">病人指派與即時監控</p>
+            </div>
         </div>
     </a>
 </div>
 
-<!-- 初始化區塊 -->
-<h2 class="text-lg font-bold text-gray-700 mb-4">🚀 系統初始化</h2>
-<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-    <form action="/admin/exams/init" method="POST" class="contents">
-        <button type="submit"
-                class="bg-blue-50 border-2 border-blue-200 rounded-xl shadow p-5 hover:bg-blue-100 transition flex items-center text-left w-full">
-            <div class="text-3xl mr-4">🔬</div>
-            <div>
-                <div class="font-bold text-blue-800">初始化檢查項目</div>
-                <div class="text-sm text-blue-600">建立預設檢查站</div>
-            </div>
-        </button>
-    </form>
-    
-    <form action="/admin/equipment/init" method="POST" class="contents">
-        <button type="submit"
-                class="bg-green-50 border-2 border-green-200 rounded-xl shadow p-5 hover:bg-green-100 transition flex items-center text-left w-full">
-            <div class="text-3xl mr-4">🖥️</div>
-            <div>
-                <div class="font-bold text-green-800">初始化設備</div>
-                <div class="text-sm text-green-600">依檢查站建立設備</div>
-            </div>
-        </button>
-    </form>
-    
-    <a href="/dispatcher" 
-       class="bg-orange-50 border-2 border-orange-200 rounded-xl shadow p-5 hover:bg-orange-100 transition flex items-center">
-        <div class="text-3xl mr-4">📊</div>
-        <div>
-            <div class="font-bold text-orange-800">前往調度台</div>
-            <div class="text-sm text-orange-600">開始今日作業</div>
-        </div>
-    </a>
+<!-- 快速初始化 -->
+<div class="mt-8 bg-gray-50 rounded-xl p-6">
+    <h3 class="font-bold text-gray-700 mb-4">🚀 快速初始化</h3>
+    <div class="flex flex-wrap gap-4">
+        <form action="/admin/exams/init" method="POST" class="inline">
+            <button type="submit" 
+                    class="px-4 py-2 bg-purple-100 hover:bg-purple-200 text-purple-700 rounded-lg text-sm">
+                🔬 初始化檢查項目
+            </button>
+        </form>
+        <form action="/admin/equipment/init" method="POST" class="inline">
+            <button type="submit" 
+                    class="px-4 py-2 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg text-sm">
+                🖥️ 初始化設備
+            </button>
+        </form>
+    </div>
 </div>
 {% endblock %}
