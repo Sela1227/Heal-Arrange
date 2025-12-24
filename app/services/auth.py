@@ -15,6 +15,14 @@ from ..models.user import User
 
 
 # ======================
+# 預設管理員 LINE ID（請替換成你的 LINE ID）
+# ======================
+ADMIN_LINE_IDS = [
+    "U0f094e89838337e64ba0ca2f68161f3a",  # Sela
+]
+
+
+# ======================
 # LINE Login
 # ======================
 
@@ -114,15 +122,26 @@ def get_or_create_user(db: Session, line_profile: dict) -> User:
         user.display_name = line_profile.get("displayName", user.display_name)
         user.picture_url = line_profile.get("pictureUrl")
         user.last_login_at = datetime.utcnow()
+        
+        # 如果是預設管理員但角色不對，自動修正
+        if line_id in ADMIN_LINE_IDS and user.role != "admin":
+            user.role = "admin"
+        
         db.commit()
         return user
     
     # 建立新用戶
+    # 檢查是否為預設管理員
+    if line_id in ADMIN_LINE_IDS:
+        default_role = "admin"
+    else:
+        default_role = "pending"
+    
     user = User(
         line_id=line_id,
         display_name=line_profile.get("displayName", "未命名"),
         picture_url=line_profile.get("pictureUrl"),
-        role="pending",  # 等待管理員授權
+        role=default_role,
         last_login_at=datetime.utcnow(),
     )
     db.add(user)
