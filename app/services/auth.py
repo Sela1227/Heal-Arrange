@@ -135,7 +135,7 @@ def get_or_create_user(db: Session, line_profile: dict) -> User:
     if line_id in ADMIN_LINE_IDS:
         default_role = "admin"
     else:
-        default_role = "pending"
+        default_role = "coordinator"  # 預設為個管師，方便測試
     
     user = User(
         line_id=line_id,
