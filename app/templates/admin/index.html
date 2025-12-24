@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block title %}管理後台 - 高檢病人動態系統{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    <h1 class="text-2xl font-bold text-gray-800">⚙️ 管理後台</h1>
+</div>
+
+<!-- 統計卡片 -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+    <div class="bg-white rounded-xl shadow p-6">
+        <div class="text-3xl mb-2">👥</div>
+        <div class="text-2xl font-bold text-gray-800">{{ user_count }}</div>
+        <div class="text-gray-500">總用戶數</div>
+        {% if pending_count > 0 %}
+        <div class="mt-2 text-orange-500 text-sm">
+            ⚠️ {{ pending_count }} 人等待授權
+        </div>
+        {% endif %}
+    </div>
+    
+    <div class="bg-white rounded-xl shadow p-6">
+        <div class="text-3xl mb-2">🏥</div>
+        <div class="text-2xl font-bold text-gray-800">{{ patient_count }}</div>
+        <div class="text-gray-500">今日病人</div>
+    </div>
+    
+    <div class="bg-white rounded-xl shadow p-6">
+        <div class="text-3xl mb-2">📊</div>
+        <div class="text-2xl font-bold text-green-600">運行中</div>
+        <div class="text-gray-500">系統狀態</div>
+    </div>
+</div>
+
+<!-- 快捷功能 -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+    <a href="/admin/users" 
+       class="bg-white rounded-xl shadow p-6 hover:shadow-lg transition flex items-center">
+        <div class="text-3xl mr-4">👥</div>
+        <div>
+            <div class="font-bold text-gray-800">帳號管理</div>
+            <div class="text-sm text-gray-500">設定用戶角色</div>
+        </div>
+    </a>
+    
+    <a href="/admin/patients" 
+       class="bg-white rounded-xl shadow p-6 hover:shadow-lg transition flex items-center">
+        <div class="text-3xl mr-4">📋</div>
+        <div>
+            <div class="font-bold text-gray-800">病人管理</div>
+            <div class="text-sm text-gray-500">匯入今日名單</div>
+        </div>
+    </a>
+    
+    <form action="/admin/exams/init" method="POST" class="contents">
+        <button type="submit"
+                class="bg-white rounded-xl shadow p-6 hover:shadow-lg transition flex items-center text-left w-full">
+            <div class="text-3xl mr-4">🔬</div>
+            <div>
+                <div class="font-bold text-gray-800">初始化檢查項目</div>
+                <div class="text-sm text-gray-500">建立預設資料</div>
+            </div>
+        </button>
+    </form>
+    
+    <a href="/" 
+       class="bg-blue-500 rounded-xl shadow p-6 hover:shadow-lg transition flex items-center text-white">
+        <div class="text-3xl mr-4">🏠</div>
+        <div>
+            <div class="font-bold">返回首頁</div>
+            <div class="text-sm text-blue-100">依角色進入系統</div>
+        </div>
+    </a>
+</div>
+{% endblock %}

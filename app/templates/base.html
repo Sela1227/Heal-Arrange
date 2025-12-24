@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}高檢病人動態系統{% endblock %}</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- HTMX -->
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    
+    <!-- Alpine.js -->
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    
+    <style>
+        [x-cloak] { display: none !important; }
+    </style>
+    
+    {% block extra_head %}{% endblock %}
+</head>
+<body class="bg-gray-100 min-h-screen">
+    {% block body %}
+    
+    <!-- 導航欄 -->
+    {% if user %}
+    <nav class="bg-blue-600 text-white shadow-lg">
+        <div class="max-w-7xl mx-auto px-4">
+            <div class="flex justify-between items-center h-14">
+                <div class="flex items-center space-x-4">
+                    <a href="/" class="text-lg font-bold">🏥 高檢病人動態系統</a>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <span class="text-sm">
+                        {% if user.picture_url %}
+                        <img src="{{ user.picture_url }}" class="w-8 h-8 rounded-full inline mr-2">
+                        {% endif %}
+                        {{ user.display_name }}
+                        <span class="text-blue-200 text-xs">({{ user.role }})</span>
+                    </span>
+                    <a href="/auth/logout" class="text-sm bg-blue-700 hover:bg-blue-800 px-3 py-1 rounded">
+                        登出
+                    </a>
+                </div>
+            </div>
+        </div>
+    </nav>
+    {% endif %}
+    
+    <!-- 主內容 -->
+    <main class="max-w-7xl mx-auto px-4 py-6">
+        {% block content %}{% endblock %}
+    </main>
+    
+    {% endblock %}
+    
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

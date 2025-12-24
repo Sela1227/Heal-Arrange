@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+{% block title %}等待授權 - 高檢病人動態系統{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-center min-h-[60vh]">
+    <div class="bg-white rounded-2xl shadow-lg p-8 max-w-md text-center">
+        <div class="text-6xl mb-6">⏳</div>
+        <h1 class="text-2xl font-bold text-gray-800 mb-4">等待管理員授權</h1>
+        <p class="text-gray-600 mb-6">
+            您的帳號已建立，但尚未獲得系統存取權限。<br>
+            請聯繫系統管理員為您設定角色。
+        </p>
+        <div class="bg-gray-50 rounded-lg p-4 mb-6">
+            <p class="text-sm text-gray-500">您的資料</p>
+            <p class="font-medium">{{ user.display_name }}</p>
+            <p class="text-xs text-gray-400">LINE ID: {{ user.line_id[:10] }}...</p>
+        </div>
+        <a href="/auth/logout" 
+           class="inline-block bg-gray-200 hover:bg-gray-300 text-gray-700 px-6 py-2 rounded-lg transition">
+            登出
+        </a>
+    </div>
+</div>
+{% endblock %}

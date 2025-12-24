@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+
+{% block title %}病人管理 - 高檢病人動態系統{% endblock %}
+
+{% block content %}
+<div class="mb-6 flex justify-between items-center">
+    <h1 class="text-2xl font-bold text-gray-800">📋 病人管理</h1>
+    <a href="/admin" class="text-blue-500 hover:text-blue-700">← 返回後台</a>
+</div>
+
+<!-- 匯入結果訊息 -->
+{% if request.query_params.get('imported') %}
+<div class="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg mb-6">
+    ✅ 成功匯入 {{ request.query_params.get('imported') }} 位病人
+    {% if request.query_params.get('errors') != '0' %}
+    （{{ request.query_params.get('errors') }} 筆錯誤）
+    {% endif %}
+</div>
+{% endif %}
+
+<!-- 匯入區塊 -->
+<div class="bg-white rounded-xl shadow p-6 mb-6">
+    <h2 class="text-lg font-bold text-gray-800 mb-4">📤 匯入病人名單</h2>
+    
+    <form action="/admin/patients/import" method="POST" enctype="multipart/form-data"
+          class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">檢查日期</label>
+            <input type="date" name="exam_date" value="{{ today }}" required
+                   class="w-full border rounded-lg px-3 py-2">
+        </div>
+        <div class="md:col-span-2">
+            <label class="block text-sm font-medium text-gray-700 mb-1">CSV 檔案</label>
+            <input type="file" name="file" accept=".csv" required
+                   class="w-full border rounded-lg px-3 py-2">
+        </div>
+        <div class="flex space-x-2">
+            <button type="submit" 
+                    class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg">
+                📥 匯入
+            </button>
+            <a href="/admin/patients/template" 
+               class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-lg">
+                📄 下載範本
+            </a>
+        </div>
+    </form>
+    
+    <div class="mt-4 text-sm text-gray-500">
+        <p>CSV 格式：病歷號,姓名,套餐代碼</p>
+        <p>範例：A001,王小明,CT,MRI,US,XRAY</p>
+    </div>
+</div>
+
+<!-- 今日病人列表 -->
+<div class="bg-white rounded-xl shadow overflow-hidden">
+    <div class="px-6 py-4 border-b">
+        <h2 class="text-lg font-bold text-gray-800">
+            📅 {{ today }} 病人名單
+            <span class="text-gray-400 font-normal text-sm">（共 {{ patients|length }} 人）</span>
+        </h2>
+    </div>
+    
+    {% if patients %}
+    <table class="w-full">
+        <thead class="bg-gray-50">
+            <tr>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">病歷號</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">姓名</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">檢查項目</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">狀態</th>
+            </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-200">
+            {% for p in patients %}
+            <tr>
+                <td class="px-6 py-4 font-mono">{{ p.chart_no }}</td>
+                <td class="px-6 py-4 font-medium">{{ p.name }}</td>
+                <td class="px-6 py-4">
+                    <div class="flex flex-wrap gap-1">
+                        {% for exam in p.exam_list %}
+                        <span class="px-2 py-0.5 bg-blue-100 text-blue-800 text-xs rounded">
+                            {{ exam }}
+                        </span>
+                        {% endfor %}
+                    </div>
+                </td>
+                <td class="px-6 py-4">
+                    {% if p.is_completed %}
+                    <span class="text-green-500">✅ 完成</span>
+                    {% elif p.is_active %}
+                    <span class="text-blue-500">🔵 進行中</span>
+                    {% else %}
+                    <span class="text-gray-400">⚪ 未開始</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="px-6 py-12 text-center text-gray-500">
+        <div class="text-4xl mb-4">📭</div>
+        <p>今日尚無病人資料</p>
+        <p class="text-sm">請使用上方匯入功能新增病人名單</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
