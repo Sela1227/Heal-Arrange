@@ -4,7 +4,7 @@
 """
 
 from datetime import datetime, date
-from sqlalchemy import Column, Integer, String, DateTime, Date, ForeignKey, Text
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, Date, ForeignKey, Text
 from sqlalchemy.orm import relationship
 from ..database import Base
 import enum
@@ -46,10 +46,6 @@ class CoordinatorAssignment(Base):
     
     def __repr__(self):
         return f"<Assignment Patient#{self.patient_id} -> User#{self.coordinator_id}>"
-
-
-# 補上 import
-from sqlalchemy import Boolean
 
 
 class PatientTracking(Base):
