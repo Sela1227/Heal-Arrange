@@ -1,0 +1,191 @@
+{% extends "base.html" %}
+
+{% block title %}調度員主控台 - 高檢病人動態系統{% endblock %}
+
+{% block content %}
+<div class="mb-6 flex justify-between items-center">
+    <h1 class="text-2xl font-bold text-gray-800">📋 調度員主控台</h1>
+    <span class="text-gray-500">{{ today }}</span>
+</div>
+
+<!-- 統計卡片 -->
+<div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+    <div class="bg-white rounded-xl shadow p-4">
+        <div class="text-3xl font-bold text-blue-600">{{ stats.total }}</div>
+        <div class="text-gray-500 text-sm">今日病人</div>
+    </div>
+    <div class="bg-white rounded-xl shadow p-4">
+        <div class="text-3xl font-bold text-green-600">{{ stats.completed }}</div>
+        <div class="text-gray-500 text-sm">已完成</div>
+    </div>
+    <div class="bg-white rounded-xl shadow p-4">
+        <div class="text-3xl font-bold text-orange-600">{{ stats.in_progress }}</div>
+        <div class="text-gray-500 text-sm">進行中</div>
+    </div>
+    <div class="bg-white rounded-xl shadow p-4">
+        <div class="text-3xl font-bold text-gray-400">{{ stats.not_started }}</div>
+        <div class="text-gray-500 text-sm">未開始</div>
+    </div>
+</div>
+
+<!-- 檢查站狀態 -->
+<div class="mb-6">
+    <h2 class="text-lg font-bold text-gray-800 mb-3">🏥 檢查站狀態</h2>
+    <div class="grid grid-cols-2 md:grid-cols-5 gap-3"
+         hx-get="/dispatcher/api/stations"
+         hx-trigger="every 5s"
+         hx-swap="innerHTML">
+        {% for code, info in station_summary.items() %}
+        <div class="bg-white rounded-lg shadow p-3 border-l-4 
+            {% if info.in_exam > 0 %}border-red-500 bg-red-50
+            {% elif info.waiting > 0 %}border-yellow-500 bg-yellow-50
+            {% else %}border-green-500 bg-green-50{% endif %}">
+            <div class="font-bold text-gray-800">{{ code }}</div>
+            <div class="text-xs text-gray-500">{{ info.exam.name }}</div>
+            <div class="mt-2 flex justify-between text-sm">
+                <span class="text-red-600">🔬 {{ info.in_exam }}</span>
+                <span class="text-yellow-600">⏳ {{ info.waiting }}</span>
+                <span class="text-blue-600">→ {{ info.pending }}</span>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- 病人列表 -->
+<div class="bg-white rounded-xl shadow overflow-hidden">
+    <div class="px-6 py-4 border-b flex justify-between items-center">
+        <h2 class="text-lg font-bold text-gray-800">👥 病人列表</h2>
+        <button onclick="location.reload()" class="text-blue-500 hover:text-blue-700 text-sm">
+            🔄 重新整理
+        </button>
+    </div>
+    
+    <div class="overflow-x-auto">
+        <table class="w-full">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">病歷號</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">姓名</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">目前位置</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">狀態</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">個管師</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">下一站</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">操作</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200">
+                {% for info in patient_list %}
+                <tr class="hover:bg-gray-50">
+                    <td class="px-4 py-3 font-mono text-sm">{{ info.patient.chart_no }}</td>
+                    <td class="px-4 py-3 font-medium">{{ info.patient.name }}</td>
+                    <td class="px-4 py-3">
+                        {% if info.tracking and info.tracking.current_location %}
+                        <span class="px-2 py-1 bg-blue-100 text-blue-800 rounded text-sm">
+                            {{ info.tracking.current_location }}
+                        </span>
+                        {% else %}
+                        <span class="text-gray-400">-</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-3">
+                        {% if info.tracking %}
+                            {% if info.tracking.current_status == 'in_exam' %}
+                            <span class="px-2 py-1 bg-red-100 text-red-800 rounded text-sm">🔬 檢查中</span>
+                            {% elif info.tracking.current_status == 'waiting' %}
+                            <span class="px-2 py-1 bg-yellow-100 text-yellow-800 rounded text-sm">⏳ 等候中</span>
+                            {% elif info.tracking.current_status == 'moving' %}
+                            <span class="px-2 py-1 bg-blue-100 text-blue-800 rounded text-sm">🚶 移動中</span>
+                            {% elif info.tracking.current_status == 'completed' %}
+                            <span class="px-2 py-1 bg-green-100 text-green-800 rounded text-sm">✅ 完成</span>
+                            {% else %}
+                            <span class="text-gray-400">{{ info.tracking.current_status }}</span>
+                            {% endif %}
+                        {% else %}
+                        <span class="text-gray-400">未開始</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-3">
+                        {% if info.coordinator %}
+                        <span class="text-sm">{{ info.coordinator.display_name }}</span>
+                        {% else %}
+                        <!-- 指派個管師 -->
+                        <form action="/dispatcher/assign-coordinator" method="POST" class="inline">
+                            <input type="hidden" name="patient_id" value="{{ info.patient.id }}">
+                            <select name="coordinator_id" onchange="this.form.submit()"
+                                    class="text-xs border rounded px-2 py-1 bg-orange-50 border-orange-300">
+                                <option value="">選擇個管師</option>
+                                {% for c in coordinators %}
+                                <option value="{{ c.id }}">{{ c.display_name }}</option>
+                                {% endfor %}
+                            </select>
+                        </form>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-3">
+                        {% if info.tracking and info.tracking.next_exam_code %}
+                        <span class="px-2 py-1 bg-purple-100 text-purple-800 rounded text-sm">
+                            → {{ info.tracking.next_exam_code }}
+                        </span>
+                        {% else %}
+                        <!-- 指派下一站 -->
+                        <form action="/dispatcher/assign-station" method="POST" class="inline">
+                            <input type="hidden" name="patient_id" value="{{ info.patient.id }}">
+                            <select name="exam_code" onchange="this.form.submit()"
+                                    class="text-xs border rounded px-2 py-1">
+                                <option value="">指派下一站</option>
+                                {% for e in exams %}
+                                <option value="{{ e.exam_code }}">{{ e.exam_code }}</option>
+                                {% endfor %}
+                            </select>
+                        </form>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-3">
+                        <div class="flex space-x-1">
+                            <!-- 重新指派個管師 -->
+                            {% if info.coordinator %}
+                            <form action="/dispatcher/assign-coordinator" method="POST" class="inline">
+                                <input type="hidden" name="patient_id" value="{{ info.patient.id }}">
+                                <select name="coordinator_id" onchange="this.form.submit()"
+                                        class="text-xs border rounded px-1 py-0.5">
+                                    <option value="">換人</option>
+                                    {% for c in coordinators %}
+                                    <option value="{{ c.id }}">{{ c.display_name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </form>
+                            {% endif %}
+                            
+                            <!-- 重新指派下一站 -->
+                            {% if info.tracking and info.tracking.next_exam_code %}
+                            <form action="/dispatcher/assign-station" method="POST" class="inline">
+                                <input type="hidden" name="patient_id" value="{{ info.patient.id }}">
+                                <select name="exam_code" onchange="this.form.submit()"
+                                        class="text-xs border rounded px-1 py-0.5">
+                                    <option value="">換站</option>
+                                    {% for e in exams %}
+                                    <option value="{{ e.exam_code }}">{{ e.exam_code }}</option>
+                                    {% endfor %}
+                                </select>
+                            </form>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+                
+                {% if not patient_list %}
+                <tr>
+                    <td colspan="7" class="px-4 py-12 text-center text-gray-500">
+                        <div class="text-4xl mb-4">📭</div>
+                        <p>今日尚無病人</p>
+                        <a href="/admin/patients" class="text-blue-500 hover:underline">前往匯入病人</a>
+                    </td>
+                </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

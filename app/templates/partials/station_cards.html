@@ -1,0 +1,14 @@
+{% for code, info in station_summary.items() %}
+<div class="bg-white rounded-lg shadow p-3 border-l-4 
+    {% if info.in_exam > 0 %}border-red-500 bg-red-50
+    {% elif info.waiting > 0 %}border-yellow-500 bg-yellow-50
+    {% else %}border-green-500 bg-green-50{% endif %}">
+    <div class="font-bold text-gray-800">{{ code }}</div>
+    <div class="text-xs text-gray-500">{{ info.exam.name }}</div>
+    <div class="mt-2 flex justify-between text-sm">
+        <span class="text-red-600">🔬 {{ info.in_exam }}</span>
+        <span class="text-yellow-600">⏳ {{ info.waiting }}</span>
+        <span class="text-blue-600">→ {{ info.pending }}</span>
+    </div>
+</div>
+{% endfor %}

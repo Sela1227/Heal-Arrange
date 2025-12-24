@@ -1,0 +1,14 @@
+{% if notifications %}
+{% for n in notifications %}
+<div class="bg-{{ n.type }}-100 border border-{{ n.type }}-300 text-{{ n.type }}-800 px-4 py-3 rounded-xl mb-2 flex items-center">
+    {% if n.type == 'info' %}
+    <span class="text-xl mr-3">📢</span>
+    {% elif n.type == 'warning' %}
+    <span class="text-xl mr-3">⚠️</span>
+    {% elif n.type == 'success' %}
+    <span class="text-xl mr-3">✅</span>
+    {% endif %}
+    <span class="font-medium">{{ n.message }}</span>
+</div>
+{% endfor %}
+{% endif %}
