@@ -1,14 +1,37 @@
-{% for code, info in station_summary.items() %}
-<div class="bg-white rounded-lg shadow p-3 border-l-4 
-    {% if info.in_exam > 0 %}border-red-500 bg-red-50
-    {% elif info.waiting > 0 %}border-yellow-500 bg-yellow-50
-    {% else %}border-green-500 bg-green-50{% endif %}">
-    <div class="font-bold text-gray-800">{{ code }}</div>
-    <div class="text-xs text-gray-500">{{ info.exam.name }}</div>
-    <div class="mt-2 flex justify-between text-sm">
-        <span class="text-red-600">🔬 {{ info.in_exam }}</span>
-        <span class="text-yellow-600">⏳ {{ info.waiting }}</span>
-        <span class="text-blue-600">→ {{ info.pending }}</span>
+<div class="bg-white rounded-xl shadow p-4">
+    <div class="font-bold text-gray-700 mb-3">🔬 檢查站狀態</div>
+    <div class="space-y-3">
+        {% for station in station_summary %}
+        <div class="border rounded-lg p-3 {% if broken_locations and station.exam_code in broken_locations %}border-red-300 bg-red-50{% else %}hover:bg-gray-50{% endif %}">
+            <div class="flex justify-between items-center">
+                <div>
+                    <div class="font-medium">
+                        {{ station.exam_code }}
+                        {% if broken_locations and station.exam_code in broken_locations %}
+                        <span class="text-red-500 text-xs">🔴 故障</span>
+                        {% endif %}
+                    </div>
+                    <div class="text-sm text-gray-500">{{ station.name }}</div>
+                </div>
+                <div class="text-right">
+                    {% if station.in_exam > 0 %}
+                    <div class="text-red-600 font-bold">🔬 {{ station.in_exam }}</div>
+                    {% endif %}
+                    {% if station.waiting > 0 %}
+                    <div class="text-yellow-600">⏳ {{ station.waiting }}</div>
+                    {% endif %}
+                    {% if station.pending > 0 %}
+                    <div class="text-gray-400 text-sm">待來 {{ station.pending }}</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+        
+        {% if not station_summary %}
+        <div class="text-center text-gray-400 py-4">
+            尚無檢查站資料
+        </div>
+        {% endif %}
     </div>
 </div>
-{% endfor %}

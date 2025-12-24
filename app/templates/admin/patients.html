@@ -5,105 +5,137 @@
 {% block content %}
 <div class="mb-6 flex justify-between items-center">
     <h1 class="text-2xl font-bold text-gray-800">📋 病人管理</h1>
-    <a href="/admin" class="text-blue-500 hover:text-blue-700">← 返回後台</a>
+    <a href="/admin" class="text-blue-500 hover:underline">← 返回管理後台</a>
 </div>
 
-<!-- 匯入結果訊息 -->
-{% if request.query_params.get('imported') %}
-<div class="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg mb-6">
-    ✅ 成功匯入 {{ request.query_params.get('imported') }} 位病人
-    {% if request.query_params.get('errors') != '0' %}
-    （{{ request.query_params.get('errors') }} 筆錯誤）
+{% if imported %}
+<div class="bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-xl mb-4">
+    ✅ 成功匯入 {{ imported }} 筆資料
+    {% if errors > 0 %}
+    <span class="text-orange-600">（{{ errors }} 筆錯誤）</span>
     {% endif %}
 </div>
 {% endif %}
 
-<!-- 匯入區塊 -->
+<!-- CSV 匯入 -->
 <div class="bg-white rounded-xl shadow p-6 mb-6">
-    <h2 class="text-lg font-bold text-gray-800 mb-4">📤 匯入病人名單</h2>
-    
-    <form action="/admin/patients/import" method="POST" enctype="multipart/form-data"
-          class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+    <h2 class="text-lg font-bold text-gray-700 mb-4">📤 CSV 匯入</h2>
+    <form action="/admin/patients/import" method="POST" enctype="multipart/form-data" 
+          class="flex flex-wrap gap-4 items-end">
         <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">檢查日期</label>
+            <label class="block text-sm text-gray-600 mb-1">檢查日期</label>
             <input type="date" name="exam_date" value="{{ today }}" required
-                   class="w-full border rounded-lg px-3 py-2">
+                   class="border rounded-lg px-3 py-2">
         </div>
-        <div class="md:col-span-2">
-            <label class="block text-sm font-medium text-gray-700 mb-1">CSV 檔案</label>
+        <div>
+            <label class="block text-sm text-gray-600 mb-1">CSV 檔案</label>
             <input type="file" name="file" accept=".csv" required
-                   class="w-full border rounded-lg px-3 py-2">
+                   class="border rounded-lg px-3 py-2">
         </div>
-        <div class="flex space-x-2">
-            <button type="submit" 
-                    class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg">
-                📥 匯入
-            </button>
-            <a href="/admin/patients/template" 
-               class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-lg">
-                📄 下載範本
-            </a>
-        </div>
+        <button type="submit"
+                class="bg-green-500 hover:bg-green-600 text-white px-6 py-2 rounded-lg font-medium">
+            📤 匯入
+        </button>
+        <a href="/admin/patients/template"
+           class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm">
+            📥 下載範本
+        </a>
     </form>
-    
-    <div class="mt-4 text-sm text-gray-500">
-        <p>CSV 格式：病歷號,姓名,套餐代碼</p>
-        <p>範例：A001,王小明,CT,MRI,US,XRAY</p>
-    </div>
 </div>
 
-<!-- 今日病人列表 -->
+<!-- 手動新增 -->
+<div class="bg-white rounded-xl shadow p-6 mb-6">
+    <h2 class="text-lg font-bold text-gray-700 mb-4">➕ 手動新增病人</h2>
+    <form action="/admin/patients/add" method="POST" class="flex flex-wrap gap-4 items-end">
+        <div>
+            <label class="block text-sm text-gray-600 mb-1">病歷號</label>
+            <input type="text" name="chart_no" required
+                   placeholder="A12345678"
+                   class="border rounded-lg px-3 py-2 w-32">
+        </div>
+        <div>
+            <label class="block text-sm text-gray-600 mb-1">姓名</label>
+            <input type="text" name="name" required
+                   placeholder="王小明"
+                   class="border rounded-lg px-3 py-2 w-32">
+        </div>
+        <div>
+            <label class="block text-sm text-gray-600 mb-1">檢查項目</label>
+            <input type="text" name="exam_list"
+                   placeholder="CT,MRI,US"
+                   class="border rounded-lg px-3 py-2 w-40">
+        </div>
+        <div>
+            <label class="block text-sm text-gray-600 mb-1">日期</label>
+            <input type="date" name="exam_date" value="{{ today }}" required
+                   class="border rounded-lg px-3 py-2">
+        </div>
+        <button type="submit"
+                class="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded-lg font-medium">
+            ➕ 新增
+        </button>
+    </form>
+</div>
+
+<!-- 病人列表 -->
 <div class="bg-white rounded-xl shadow overflow-hidden">
-    <div class="px-6 py-4 border-b">
-        <h2 class="text-lg font-bold text-gray-800">
-            📅 {{ today }} 病人名單
-            <span class="text-gray-400 font-normal text-sm">（共 {{ patients|length }} 人）</span>
-        </h2>
+    <div class="px-4 py-3 bg-gray-50 border-b flex justify-between items-center">
+        <span class="font-bold text-gray-700">
+            📋 今日病人列表（{{ today }}）
+        </span>
+        <span class="text-sm text-gray-500">共 {{ patients|length }} 人</span>
     </div>
     
-    {% if patients %}
-    <table class="w-full">
-        <thead class="bg-gray-50">
-            <tr>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">病歷號</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">姓名</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">檢查項目</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">狀態</th>
-            </tr>
-        </thead>
-        <tbody class="divide-y divide-gray-200">
-            {% for p in patients %}
-            <tr>
-                <td class="px-6 py-4 font-mono">{{ p.chart_no }}</td>
-                <td class="px-6 py-4 font-medium">{{ p.name }}</td>
-                <td class="px-6 py-4">
-                    <div class="flex flex-wrap gap-1">
-                        {% for exam in p.exam_list %}
-                        <span class="px-2 py-0.5 bg-blue-100 text-blue-800 text-xs rounded">
-                            {{ exam }}
-                        </span>
-                        {% endfor %}
-                    </div>
-                </td>
-                <td class="px-6 py-4">
-                    {% if p.is_completed %}
-                    <span class="text-green-500">✅ 完成</span>
-                    {% elif p.is_active %}
-                    <span class="text-blue-500">🔵 進行中</span>
-                    {% else %}
-                    <span class="text-gray-400">⚪ 未開始</span>
-                    {% endif %}
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-    {% else %}
-    <div class="px-6 py-12 text-center text-gray-500">
-        <div class="text-4xl mb-4">📭</div>
-        <p>今日尚無病人資料</p>
-        <p class="text-sm">請使用上方匯入功能新增病人名單</p>
+    <div class="overflow-x-auto">
+        <table class="w-full">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">病歷號</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">姓名</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">檢查項目</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">操作</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200">
+                {% for patient in patients %}
+                <tr class="hover:bg-gray-50">
+                    <td class="px-4 py-3 font-mono">{{ patient.chart_no }}</td>
+                    <td class="px-4 py-3 font-medium">{{ patient.name }}</td>
+                    <td class="px-4 py-3">
+                        {% if patient.exam_list %}
+                        <div class="flex flex-wrap gap-1">
+                            {% for code in patient.exam_list.split(',') %}
+                            <span class="px-2 py-0.5 bg-blue-100 text-blue-800 rounded text-xs">
+                                {{ code.strip() }}
+                            </span>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <span class="text-gray-400">-</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-3">
+                        <form action="/admin/patients/{{ patient.id }}/delete" method="POST" class="inline"
+                              onsubmit="return confirm('確定要刪除此病人？')">
+                            <button type="submit" class="text-red-500 hover:text-red-700 text-sm">
+                                🗑️ 刪除
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+                
+                {% if not patients %}
+                <tr>
+                    <td colspan="4" class="px-4 py-12 text-center text-gray-500">
+                        <div class="text-4xl mb-4">📭</div>
+                        <p>今日尚無病人</p>
+                        <p class="text-sm">請匯入 CSV 或手動新增</p>
+                    </td>
+                </tr>
+                {% endif %}
+            </tbody>
+        </table>
     </div>
-    {% endif %}
 </div>
 {% endblock %}

@@ -4,3 +4,5 @@
 """
 
 from . import tracking
+from . import equipment
+from . import import_service

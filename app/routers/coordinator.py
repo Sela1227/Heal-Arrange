@@ -13,6 +13,7 @@ from ..database import get_db
 from ..models.user import User, UserRole
 from ..models.exam import Exam
 from ..models.tracking import TrackingStatus
+from ..models.equipment import Equipment, EquipmentLog, EquipmentStatus
 from ..services.auth import get_current_user
 from ..services import tracking as tracking_service
 
@@ -51,6 +52,14 @@ async def coordinator_my_patient(
     if patient_info and patient_info["patient"]:
         history = tracking_service.get_tracking_history(db, patient_info["patient"].id, today)
     
+    # 取得目前位置的設備（用於故障回報）
+    current_equipment = None
+    if patient_info and patient_info["tracking"] and patient_info["tracking"].current_location:
+        current_equipment = db.query(Equipment).filter(
+            Equipment.location == patient_info["tracking"].current_location,
+            Equipment.is_active == True
+        ).all()
+    
     return templates.TemplateResponse("coordinator/my_patient.html", {
         "request": request,
         "user": current_user,
@@ -58,6 +67,7 @@ async def coordinator_my_patient(
         "patient_info": patient_info,
         "exams_dict": exams_dict,
         "history": history,
+        "current_equipment": current_equipment,
         "statuses": [
             {"value": "waiting", "label": "等候中", "icon": "⏳"},
             {"value": "in_exam", "label": "檢查中", "icon": "🔬"},
@@ -79,13 +89,11 @@ async def update_status(
     """更新病人狀態"""
     today = date.today()
     
-    # 取得我負責的病人
     patient_info = tracking_service.get_coordinator_patient(db, current_user.id, today)
     
     if not patient_info or not patient_info["patient"]:
         raise HTTPException(status_code=400, detail="您目前沒有負責的病人")
     
-    # 如果沒有指定位置，使用下一站或目前位置
     if not location:
         if patient_info["tracking"]:
             location = patient_info["tracking"].next_exam_code or patient_info["tracking"].current_location
@@ -117,7 +125,6 @@ async def report_arrive(
     if not patient_info or not patient_info["patient"]:
         raise HTTPException(status_code=400, detail="您目前沒有負責的病人")
     
-    # 到達下一站
     location = "LOBBY"
     if patient_info["tracking"] and patient_info["tracking"].next_exam_code:
         location = patient_info["tracking"].next_exam_code
@@ -183,11 +190,39 @@ async def report_complete(
     tracking_service.update_patient_status(
         db=db,
         patient_id=patient_info["patient"].id,
-        new_status=TrackingStatus.WAITING.value,  # 完成後等待下一站指派
+        new_status=TrackingStatus.WAITING.value,
         location=location,
         operator_id=current_user.id,
         notes="完成檢查，等待下一站",
     )
+    
+    return RedirectResponse(url="/coordinator", status_code=302)
+
+
+@router.post("/report-equipment-failure")
+async def report_equipment_failure(
+    request: Request,
+    equipment_id: int = Form(...),
+    description: str = Form(""),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_coordinator),
+):
+    """回報設備故障"""
+    equipment = db.query(Equipment).filter(Equipment.id == equipment_id).first()
+    if equipment:
+        old_status = equipment.status
+        equipment.status = EquipmentStatus.BROKEN.value
+        
+        log = EquipmentLog(
+            equipment_id=equipment_id,
+            action="report_failure",
+            old_status=old_status,
+            new_status=EquipmentStatus.BROKEN.value,
+            description=description or "個管師回報故障",
+            operator_id=current_user.id,
+        )
+        db.add(log)
+        db.commit()
     
     return RedirectResponse(url="/coordinator", status_code=302)
 
@@ -210,11 +245,24 @@ async def get_notifications(
     
     if patient_info and patient_info["tracking"]:
         tracking = patient_info["tracking"]
-        # 檢查是否有新指派的下一站
         if tracking.next_exam_code and tracking.current_location != tracking.next_exam_code:
             notifications.append({
                 "type": "info",
                 "message": f"請前往 {tracking.next_exam_code}",
+            })
+    
+    # 檢查目前位置是否有故障設備
+    if patient_info and patient_info["tracking"] and patient_info["tracking"].current_location:
+        broken_at_location = db.query(Equipment).filter(
+            Equipment.location == patient_info["tracking"].current_location,
+            Equipment.status == EquipmentStatus.BROKEN.value,
+            Equipment.is_active == True
+        ).first()
+        
+        if broken_at_location:
+            notifications.append({
+                "type": "warning",
+                "message": f"⚠️ {broken_at_location.name} 故障中",
             })
     
     return templates.TemplateResponse("partials/notifications.html", {

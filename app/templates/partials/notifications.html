@@ -1,14 +1,25 @@
 {% if notifications %}
-{% for n in notifications %}
-<div class="bg-{{ n.type }}-100 border border-{{ n.type }}-300 text-{{ n.type }}-800 px-4 py-3 rounded-xl mb-2 flex items-center">
-    {% if n.type == 'info' %}
-    <span class="text-xl mr-3">📢</span>
-    {% elif n.type == 'warning' %}
-    <span class="text-xl mr-3">⚠️</span>
-    {% elif n.type == 'success' %}
-    <span class="text-xl mr-3">✅</span>
-    {% endif %}
-    <span class="font-medium">{{ n.message }}</span>
+{% for notif in notifications %}
+<div class="rounded-xl p-4 mb-2 animate-pulse
+            {% if notif.type == 'warning' %}bg-orange-100 border-2 border-orange-300
+            {% elif notif.type == 'error' %}bg-red-100 border-2 border-red-300
+            {% elif notif.type == 'success' %}bg-green-100 border-2 border-green-300
+            {% else %}bg-blue-100 border-2 border-blue-300{% endif %}">
+    <div class="flex items-center">
+        <span class="text-xl mr-3">
+            {% if notif.type == 'warning' %}⚠️
+            {% elif notif.type == 'error' %}❌
+            {% elif notif.type == 'success' %}✅
+            {% else %}📢{% endif %}
+        </span>
+        <span class="font-medium
+                    {% if notif.type == 'warning' %}text-orange-800
+                    {% elif notif.type == 'error' %}text-red-800
+                    {% elif notif.type == 'success' %}text-green-800
+                    {% else %}text-blue-800{% endif %}">
+            {{ notif.message }}
+        </span>
+    </div>
 </div>
 {% endfor %}
 {% endif %}

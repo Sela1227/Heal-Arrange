@@ -8,11 +8,11 @@
 </div>
 
 <!-- 統計卡片 -->
-<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-    <div class="bg-white rounded-xl shadow p-6">
+<div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+    <div class="bg-white rounded-xl shadow p-5">
         <div class="text-3xl mb-2">👥</div>
         <div class="text-2xl font-bold text-gray-800">{{ user_count }}</div>
-        <div class="text-gray-500">總用戶數</div>
+        <div class="text-gray-500 text-sm">總用戶數</div>
         {% if pending_count > 0 %}
         <div class="mt-2 text-orange-500 text-sm">
             ⚠️ {{ pending_count }} 人等待授權
@@ -20,23 +20,35 @@
         {% endif %}
     </div>
     
-    <div class="bg-white rounded-xl shadow p-6">
+    <div class="bg-white rounded-xl shadow p-5">
         <div class="text-3xl mb-2">🏥</div>
         <div class="text-2xl font-bold text-gray-800">{{ patient_count }}</div>
-        <div class="text-gray-500">今日病人</div>
+        <div class="text-gray-500 text-sm">今日病人</div>
     </div>
     
-    <div class="bg-white rounded-xl shadow p-6">
-        <div class="text-3xl mb-2">📊</div>
-        <div class="text-2xl font-bold text-green-600">運行中</div>
-        <div class="text-gray-500">系統狀態</div>
+    <div class="bg-white rounded-xl shadow p-5">
+        <div class="text-3xl mb-2">🔬</div>
+        <div class="text-2xl font-bold text-gray-800">{{ exam_count }}</div>
+        <div class="text-gray-500 text-sm">檢查項目</div>
+    </div>
+    
+    <div class="bg-white rounded-xl shadow p-5">
+        <div class="text-3xl mb-2">🖥️</div>
+        <div class="text-2xl font-bold text-gray-800">{{ equipment_count }}</div>
+        <div class="text-gray-500 text-sm">設備數量</div>
+        {% if broken_count > 0 %}
+        <div class="mt-2 text-red-500 text-sm">
+            🔴 {{ broken_count }} 台故障中
+        </div>
+        {% endif %}
     </div>
 </div>
 
 <!-- 快捷功能 -->
-<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+<h2 class="text-lg font-bold text-gray-700 mb-4">📌 快捷功能</h2>
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
     <a href="/admin/users" 
-       class="bg-white rounded-xl shadow p-6 hover:shadow-lg transition flex items-center">
+       class="bg-white rounded-xl shadow p-5 hover:shadow-lg transition flex items-center">
         <div class="text-3xl mr-4">👥</div>
         <div>
             <div class="font-bold text-gray-800">帳號管理</div>
@@ -45,7 +57,7 @@
     </a>
     
     <a href="/admin/patients" 
-       class="bg-white rounded-xl shadow p-6 hover:shadow-lg transition flex items-center">
+       class="bg-white rounded-xl shadow p-5 hover:shadow-lg transition flex items-center">
         <div class="text-3xl mr-4">📋</div>
         <div>
             <div class="font-bold text-gray-800">病人管理</div>
@@ -53,23 +65,56 @@
         </div>
     </a>
     
+    <a href="/admin/exams" 
+       class="bg-white rounded-xl shadow p-5 hover:shadow-lg transition flex items-center">
+        <div class="text-3xl mr-4">🔬</div>
+        <div>
+            <div class="font-bold text-gray-800">檢查項目管理</div>
+            <div class="text-sm text-gray-500">新增/編輯檢查</div>
+        </div>
+    </a>
+    
+    <a href="/admin/equipment" 
+       class="bg-white rounded-xl shadow p-5 hover:shadow-lg transition flex items-center">
+        <div class="text-3xl mr-4">🖥️</div>
+        <div>
+            <div class="font-bold text-gray-800">設備管理</div>
+            <div class="text-sm text-gray-500">故障狀態/維修</div>
+        </div>
+    </a>
+</div>
+
+<!-- 初始化區塊 -->
+<h2 class="text-lg font-bold text-gray-700 mb-4">🚀 系統初始化</h2>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
     <form action="/admin/exams/init" method="POST" class="contents">
         <button type="submit"
-                class="bg-white rounded-xl shadow p-6 hover:shadow-lg transition flex items-center text-left w-full">
+                class="bg-blue-50 border-2 border-blue-200 rounded-xl shadow p-5 hover:bg-blue-100 transition flex items-center text-left w-full">
             <div class="text-3xl mr-4">🔬</div>
             <div>
-                <div class="font-bold text-gray-800">初始化檢查項目</div>
-                <div class="text-sm text-gray-500">建立預設資料</div>
+                <div class="font-bold text-blue-800">初始化檢查項目</div>
+                <div class="text-sm text-blue-600">建立預設檢查站</div>
             </div>
         </button>
     </form>
     
-    <a href="/" 
-       class="bg-blue-500 rounded-xl shadow p-6 hover:shadow-lg transition flex items-center text-white">
-        <div class="text-3xl mr-4">🏠</div>
+    <form action="/admin/equipment/init" method="POST" class="contents">
+        <button type="submit"
+                class="bg-green-50 border-2 border-green-200 rounded-xl shadow p-5 hover:bg-green-100 transition flex items-center text-left w-full">
+            <div class="text-3xl mr-4">🖥️</div>
+            <div>
+                <div class="font-bold text-green-800">初始化設備</div>
+                <div class="text-sm text-green-600">依檢查站建立設備</div>
+            </div>
+        </button>
+    </form>
+    
+    <a href="/dispatcher" 
+       class="bg-orange-50 border-2 border-orange-200 rounded-xl shadow p-5 hover:bg-orange-100 transition flex items-center">
+        <div class="text-3xl mr-4">📊</div>
         <div>
-            <div class="font-bold">返回首頁</div>
-            <div class="text-sm text-blue-100">依角色進入系統</div>
+            <div class="font-bold text-orange-800">前往調度台</div>
+            <div class="text-sm text-orange-600">開始今日作業</div>
         </div>
     </a>
 </div>

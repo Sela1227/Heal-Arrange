@@ -4,41 +4,55 @@
 """
 
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Text
 from sqlalchemy.orm import relationship
 from ..database import Base
 import enum
 
 
-class EquipmentStatusType(str, enum.Enum):
-    NORMAL = "normal"
-    WARNING = "warning"
-    DOWN = "down"
+class EquipmentStatus(str, enum.Enum):
+    NORMAL = "normal"      # 正常
+    WARNING = "warning"    # 警告
+    BROKEN = "broken"      # 故障
 
 
-class EquipmentStatus(Base):
-    """設備狀態"""
-    __tablename__ = "equipment_status"
+class Equipment(Base):
+    """設備"""
+    __tablename__ = "equipment"
     
     id = Column(Integer, primary_key=True, index=True)
-    exam_code = Column(String(50), nullable=False, index=True)  # 對應檢查項目
+    name = Column(String(100), nullable=False)
+    location = Column(String(50), nullable=False, index=True)  # 對應檢查站代碼
+    equipment_type = Column(String(50), nullable=True)
+    description = Column(Text, nullable=True)
     
-    status = Column(String(20), default=EquipmentStatusType.NORMAL.value)
-    issue_description = Column(Text, nullable=True)
+    status = Column(String(20), default=EquipmentStatus.NORMAL.value)
+    is_active = Column(Boolean, default=True)
     
-    reported_at = Column(DateTime, default=datetime.utcnow)
-    reported_by = Column(Integer, ForeignKey("users.id"), nullable=True)
-    
-    resolved_at = Column(DateTime, nullable=True)
-    resolved_by = Column(Integer, ForeignKey("users.id"), nullable=True)
-    
-    # 關聯
-    reporter = relationship("User", foreign_keys=[reported_by])
-    resolver = relationship("User", foreign_keys=[resolved_by])
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     def __repr__(self):
-        return f"<Equipment {self.exam_code} {self.status}>"
+        return f"<Equipment {self.name} @ {self.location}>"
+
+
+class EquipmentLog(Base):
+    """設備操作日誌"""
+    __tablename__ = "equipment_logs"
     
-    @property
-    def is_resolved(self) -> bool:
-        return self.resolved_at is not None
+    id = Column(Integer, primary_key=True, index=True)
+    equipment_id = Column(Integer, ForeignKey("equipment.id"), nullable=False)
+    
+    action = Column(String(50), nullable=False)  # report_failure, repair, maintenance
+    old_status = Column(String(20), nullable=True)
+    new_status = Column(String(20), nullable=True)
+    description = Column(Text, nullable=True)
+    
+    operator_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    equipment = relationship("Equipment")
+    operator = relationship("User")
+    
+    def __repr__(self):
+        return f"<EquipmentLog {self.action} @ {self.created_at}>"

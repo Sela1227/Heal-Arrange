@@ -1,0 +1,30 @@
+{% if broken_equipment %}
+<div class="bg-red-50 border-2 border-red-300 rounded-xl p-4 mb-6"
+     hx-get="/dispatcher/api/broken-equipment"
+     hx-trigger="every 10s"
+     hx-swap="outerHTML">
+    <div class="flex items-center justify-between">
+        <div class="flex items-center">
+            <span class="text-2xl mr-3">⚠️</span>
+            <div>
+                <div class="font-bold text-red-700">設備故障警示</div>
+                <div class="text-sm text-red-600">
+                    {% for eq in broken_equipment %}
+                    <span class="inline-block mr-2">
+                        🔴 {{ eq.name }} ({{ exams_dict[eq.location].name if eq.location in exams_dict else eq.location }})
+                    </span>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        <a href="/admin/equipment" class="text-red-600 hover:text-red-800 text-sm">
+            前往處理 →
+        </a>
+    </div>
+</div>
+{% else %}
+<div hx-get="/dispatcher/api/broken-equipment"
+     hx-trigger="every 10s"
+     hx-swap="outerHTML">
+</div>
+{% endif %}

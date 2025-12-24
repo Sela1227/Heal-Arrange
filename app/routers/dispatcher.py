@@ -14,6 +14,7 @@ from ..models.user import User, UserRole
 from ..models.patient import Patient
 from ..models.exam import Exam
 from ..models.tracking import PatientTracking, CoordinatorAssignment
+from ..models.equipment import Equipment, EquipmentLog, EquipmentStatus
 from ..services.auth import get_current_user
 from ..services import tracking as tracking_service
 
@@ -60,6 +61,16 @@ async def dispatcher_dashboard(
     
     # 取得所有檢查項目
     exams = db.query(Exam).filter(Exam.is_active == True).all()
+    exams_dict = {e.exam_code: e for e in exams}
+    
+    # 取得故障設備
+    broken_equipment = db.query(Equipment).filter(
+        Equipment.status == EquipmentStatus.BROKEN.value,
+        Equipment.is_active == True
+    ).all()
+    
+    # 取得所有設備（用於回報）
+    all_equipment = db.query(Equipment).filter(Equipment.is_active == True).all()
     
     # 統計
     total_patients = len(patients)
@@ -75,6 +86,9 @@ async def dispatcher_dashboard(
         "station_summary": station_summary,
         "coordinators": coordinators,
         "exams": exams,
+        "exams_dict": exams_dict,
+        "broken_equipment": broken_equipment,
+        "all_equipment": all_equipment,
         "stats": {
             "total": total_patients,
             "completed": completed,
@@ -118,6 +132,34 @@ async def assign_station(
         next_exam_code=exam_code,
         assigned_by=current_user.id,
     )
+    
+    return RedirectResponse(url="/dispatcher", status_code=302)
+
+
+@router.post("/report-equipment-failure")
+async def report_equipment_failure(
+    request: Request,
+    equipment_id: int = Form(...),
+    description: str = Form(""),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_dispatcher),
+):
+    """回報設備故障"""
+    equipment = db.query(Equipment).filter(Equipment.id == equipment_id).first()
+    if equipment:
+        old_status = equipment.status
+        equipment.status = EquipmentStatus.BROKEN.value
+        
+        log = EquipmentLog(
+            equipment_id=equipment_id,
+            action="report_failure",
+            old_status=old_status,
+            new_status=EquipmentStatus.BROKEN.value,
+            description=description or "調度員回報故障",
+            operator_id=current_user.id,
+        )
+        db.add(log)
+        db.commit()
     
     return RedirectResponse(url="/dispatcher", status_code=302)
 
@@ -166,7 +208,37 @@ async def get_stations_partial(
     today = date.today()
     station_summary = tracking_service.get_station_summary(db, today)
     
+    # 取得故障設備
+    broken_equipment = db.query(Equipment).filter(
+        Equipment.status == EquipmentStatus.BROKEN.value,
+        Equipment.is_active == True
+    ).all()
+    broken_locations = {eq.location for eq in broken_equipment}
+    
     return templates.TemplateResponse("partials/station_cards.html", {
         "request": request,
         "station_summary": station_summary,
+        "broken_locations": broken_locations,
+    })
+
+
+@router.get("/api/broken-equipment", response_class=HTMLResponse)
+async def get_broken_equipment_partial(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_dispatcher),
+):
+    """故障設備列表（HTMX 部分更新）"""
+    broken_equipment = db.query(Equipment).filter(
+        Equipment.status == EquipmentStatus.BROKEN.value,
+        Equipment.is_active == True
+    ).all()
+    
+    exams = db.query(Exam).filter(Exam.is_active == True).all()
+    exams_dict = {e.exam_code: e for e in exams}
+    
+    return templates.TemplateResponse("partials/broken_alert.html", {
+        "request": request,
+        "broken_equipment": broken_equipment,
+        "exams_dict": exams_dict,
     })
