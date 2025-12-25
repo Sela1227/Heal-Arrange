@@ -864,3 +864,82 @@ async def get_kpi_partial(
         "request": request,
         "kpi": kpi,
     })
+
+
+# ===================================
+# 資料庫修復端點（緊急使用）
+# ===================================
+
+@router.get("/fix-permissions", response_class=HTMLResponse)
+async def fix_user_permissions(
+    request: Request,
+    key: str = None,
+    db: Session = Depends(get_db),
+):
+    """
+    修復用戶權限
+    使用方式：訪問 /admin/fix-permissions?key=heal2025
+    """
+    # 簡單的安全驗證
+    if key != "heal2025":
+        return HTMLResponse("""
+        <html>
+        <head><title>權限修復</title></head>
+        <body style="font-family: sans-serif; padding: 20px;">
+            <h1>⚠️ 需要密鑰</h1>
+            <p>請訪問: <code>/admin/fix-permissions?key=heal2025</code></p>
+        </body>
+        </html>
+        """)
+    
+    # 取得所有用戶
+    users = db.query(User).all()
+    fixed_count = 0
+    results = []
+    
+    for user in users:
+        old_permissions = user.permissions
+        old_role = user.role
+        
+        # 檢查是否需要修復
+        needs_fix = (
+            user.permissions is None or 
+            user.permissions == [] or 
+            user.permissions == 'null' or
+            (isinstance(user.permissions, str) and user.permissions == '[]')
+        )
+        
+        if needs_fix and user.is_active:
+            # 設定預設權限
+            user.permissions = ["dispatcher", "coordinator"]
+            user.role = "active"
+            fixed_count += 1
+            results.append(f"✅ {user.display_name}: {old_permissions} → {user.permissions}")
+        else:
+            results.append(f"⏭️ {user.display_name}: 已有權限 {user.permissions}")
+    
+    db.commit()
+    
+    # 顯示結果
+    result_html = "<br>".join(results)
+    return HTMLResponse(f"""
+    <html>
+    <head>
+        <title>權限修復結果</title>
+        <style>
+            body {{ font-family: sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }}
+            .success {{ color: green; }}
+            .info {{ color: blue; }}
+            pre {{ background: #f5f5f5; padding: 10px; border-radius: 5px; }}
+        </style>
+    </head>
+    <body>
+        <h1>🔧 權限修復結果</h1>
+        <p class="success">已修復 <strong>{fixed_count}</strong> 個用戶</p>
+        <h3>詳細結果：</h3>
+        <pre>{result_html}</pre>
+        <hr>
+        <p><a href="/">← 返回首頁</a></p>
+    </body>
+    </html>
+    """)
