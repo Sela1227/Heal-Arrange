@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..models.user import User
-from ..services.auth import get_current_user
+from ..services.auth import get_current_user, get_line_login_url
 
 router = APIRouter(tags=["首頁"])
 templates = Jinja2Templates(directory="app/templates")
@@ -28,6 +28,7 @@ async def home(
         # 未登入，顯示登入頁
         return templates.TemplateResponse("login.html", {
             "request": request,
+            "line_login_url": get_line_login_url(),
         })
     
     # 已登入，顯示功能入口頁
