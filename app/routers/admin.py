@@ -816,3 +816,51 @@ async def export_full_backup(
         media_type="application/json",
         headers={"Content-Disposition": f"attachment; filename=heal_arrange_backup_{date.today()}.json"}
     )
+
+
+# ======================
+# 效能儀表板
+# ======================
+
+@router.get("/dashboard", response_class=HTMLResponse)
+async def admin_dashboard(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """效能儀表板"""
+    from ..services import dashboard as dashboard_service
+    
+    kpi = dashboard_service.get_realtime_kpi(db)
+    hourly_data = dashboard_service.get_hourly_stats(db)
+    station_performance = dashboard_service.get_station_performance(db)
+    coordinator_performance = dashboard_service.get_coordinator_performance(db)
+    chart_data = dashboard_service.get_daily_chart_data(db, days=7)
+    
+    return templates.TemplateResponse("admin/dashboard.html", {
+        "request": request,
+        "user": current_user,
+        "now": datetime.now(),
+        "kpi": kpi,
+        "hourly_data": hourly_data,
+        "station_performance": station_performance,
+        "coordinator_performance": coordinator_performance,
+        "chart_data": chart_data,
+    })
+
+
+@router.get("/dashboard/api/kpi", response_class=HTMLResponse)
+async def get_kpi_partial(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """KPI 卡片（HTMX 部分更新）"""
+    from ..services import dashboard as dashboard_service
+    
+    kpi = dashboard_service.get_realtime_kpi(db)
+    
+    return templates.TemplateResponse("partials/kpi_cards.html", {
+        "request": request,
+        "kpi": kpi,
+    })

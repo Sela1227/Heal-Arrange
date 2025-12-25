@@ -1,0 +1,67 @@
+<!-- KPI 卡片 -->
+<div class="bg-white rounded-xl shadow p-4">
+    <div class="flex items-center justify-between">
+        <div>
+            <div class="text-3xl font-bold text-blue-600">{{ kpi.patients.total }}</div>
+            <div class="text-sm text-gray-500">今日病人</div>
+        </div>
+        <div class="text-4xl">🏥</div>
+    </div>
+    <div class="mt-2 flex items-center space-x-2 text-xs">
+        <span class="text-green-600">✅ {{ kpi.patients.completed }}</span>
+        <span class="text-yellow-600">⏳ {{ kpi.patients.in_progress }}</span>
+        <span class="text-gray-400">⏸️ {{ kpi.patients.not_started }}</span>
+    </div>
+</div>
+
+<div class="bg-white rounded-xl shadow p-4">
+    <div class="flex items-center justify-between">
+        <div>
+            <div class="text-3xl font-bold {% if kpi.patients.completion_rate >= 80 %}text-green-600{% elif kpi.patients.completion_rate >= 50 %}text-yellow-600{% else %}text-red-600{% endif %}">
+                {{ kpi.patients.completion_rate }}%
+            </div>
+            <div class="text-sm text-gray-500">完成率</div>
+        </div>
+        <div class="text-4xl">📊</div>
+    </div>
+    <div class="mt-2">
+        <div class="w-full bg-gray-200 rounded-full h-2">
+            <div class="h-2 rounded-full {% if kpi.patients.completion_rate >= 80 %}bg-green-500{% elif kpi.patients.completion_rate >= 50 %}bg-yellow-500{% else %}bg-red-500{% endif %}"
+                 style="width: {{ kpi.patients.completion_rate }}%"></div>
+        </div>
+    </div>
+</div>
+
+<div class="bg-white rounded-xl shadow p-4">
+    <div class="flex items-center justify-between">
+        <div>
+            <div class="text-3xl font-bold {% if kpi.equipment.broken > 0 %}text-red-600{% else %}text-green-600{% endif %}">
+                {{ kpi.equipment.health_rate }}%
+            </div>
+            <div class="text-sm text-gray-500">設備健康度</div>
+        </div>
+        <div class="text-4xl">🖥️</div>
+    </div>
+    {% if kpi.equipment.broken > 0 %}
+    <div class="mt-2 text-xs text-red-500">
+        🔴 {{ kpi.equipment.broken }} 台故障
+    </div>
+    {% else %}
+    <div class="mt-2 text-xs text-green-500">
+        ✅ 所有設備正常
+    </div>
+    {% endif %}
+</div>
+
+<div class="bg-white rounded-xl shadow p-4">
+    <div class="flex items-center justify-between">
+        <div>
+            <div class="text-3xl font-bold text-purple-600">{{ kpi.coordinators.active }}</div>
+            <div class="text-sm text-gray-500">工作中個管師</div>
+        </div>
+        <div class="text-4xl">👥</div>
+    </div>
+    <div class="mt-2 text-xs text-gray-500">
+        今日操作 {{ kpi.operations.today }} 次
+    </div>
+</div>

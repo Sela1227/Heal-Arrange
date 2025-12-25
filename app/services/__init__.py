@@ -7,3 +7,5 @@ from . import auth
 from . import audit
 from . import backup
 from . import stats
+from . import wait_time
+from . import dashboard

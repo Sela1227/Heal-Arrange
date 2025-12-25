@@ -1,0 +1,243 @@
+{% extends "base.html" %}
+
+{% block title %}效能儀表板 - 高檢病人動態系統{% endblock %}
+
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="mb-6 flex justify-between items-center">
+    <h1 class="text-2xl font-bold text-gray-800">📈 效能儀表板</h1>
+    <div class="flex items-center space-x-4">
+        <span class="text-sm text-gray-500">
+            🕐 更新時間：<span id="update-time">{{ now.strftime('%H:%M:%S') }}</span>
+        </span>
+        <a href="/admin/reports" class="text-blue-500 hover:underline">← 返回報表</a>
+    </div>
+</div>
+
+<!-- 即時 KPI 卡片 -->
+<div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6"
+     hx-get="/admin/dashboard/api/kpi"
+     hx-trigger="every 10s"
+     hx-swap="innerHTML">
+    {% include "partials/kpi_cards.html" %}
+</div>
+
+<!-- 圖表區域 -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+    <!-- 每日趨勢圖 -->
+    <div class="bg-white rounded-xl shadow p-6">
+        <h3 class="font-bold text-gray-700 mb-4">📊 近 7 日趨勢</h3>
+        <canvas id="dailyTrendChart" height="200"></canvas>
+    </div>
+    
+    <!-- 今日時段圖 -->
+    <div class="bg-white rounded-xl shadow p-6">
+        <h3 class="font-bold text-gray-700 mb-4">⏰ 今日各時段處理量</h3>
+        <canvas id="hourlyChart" height="200"></canvas>
+    </div>
+</div>
+
+<!-- 檢查站效能表 -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+    <div class="bg-white rounded-xl shadow overflow-hidden">
+        <div class="px-4 py-3 bg-gray-50 border-b font-bold text-gray-700">
+            🏥 檢查站效能
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-4 py-2 text-left">檢查站</th>
+                        <th class="px-4 py-2 text-center">完成</th>
+                        <th class="px-4 py-2 text-center">等候</th>
+                        <th class="px-4 py-2 text-center">設備</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y">
+                    {% for station in station_performance %}
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-4 py-2 font-medium">
+                            {{ station.exam_name }}
+                            <span class="text-xs text-gray-400">({{ station.exam_code }})</span>
+                        </td>
+                        <td class="px-4 py-2 text-center">
+                            <span class="text-green-600 font-bold">{{ station.completed }}</span>
+                        </td>
+                        <td class="px-4 py-2 text-center">
+                            {% if station.waiting > 0 %}
+                            <span class="px-2 py-1 bg-yellow-100 text-yellow-700 rounded text-xs">
+                                {{ station.waiting }} 人
+                            </span>
+                            {% else %}
+                            <span class="text-gray-400">0</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-2 text-center">
+                            {% if station.equipment_status == 'normal' %}
+                            <span class="text-green-500">🟢</span>
+                            {% elif station.equipment_status == 'broken' %}
+                            <span class="text-red-500">🔴</span>
+                            {% else %}
+                            <span class="text-yellow-500">🟡</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <!-- 個管師效能表 -->
+    <div class="bg-white rounded-xl shadow overflow-hidden">
+        <div class="px-4 py-3 bg-gray-50 border-b font-bold text-gray-700">
+            👥 個管師工作量
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-4 py-2 text-left">姓名</th>
+                        <th class="px-4 py-2 text-center">指派數</th>
+                        <th class="px-4 py-2 text-center">操作數</th>
+                        <th class="px-4 py-2 text-center">狀態</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y">
+                    {% for coord in coordinator_performance %}
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-4 py-2 font-medium">{{ coord.name }}</td>
+                        <td class="px-4 py-2 text-center">{{ coord.assignments }}</td>
+                        <td class="px-4 py-2 text-center">
+                            <span class="text-blue-600 font-bold">{{ coord.operations }}</span>
+                        </td>
+                        <td class="px-4 py-2 text-center">
+                            {% if coord.status == '空閒' %}
+                            <span class="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs">空閒</span>
+                            {% elif coord.status == '檢查中' %}
+                            <span class="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs">檢查中</span>
+                            {% elif coord.status == '等候中' %}
+                            <span class="px-2 py-1 bg-yellow-100 text-yellow-700 rounded text-xs">等候中</span>
+                            {% elif coord.status == '已完成' %}
+                            <span class="px-2 py-1 bg-green-100 text-green-700 rounded text-xs">已完成</span>
+                            {% else %}
+                            <span class="px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs">{{ coord.status }}</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    {% if not coordinator_performance %}
+                    <tr>
+                        <td colspan="4" class="px-4 py-8 text-center text-gray-400">
+                            尚無個管師資料
+                        </td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- 快速連結 -->
+<div class="flex flex-wrap gap-3">
+    <a href="/admin/reports" 
+       class="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm">
+        📊 統計報表
+    </a>
+    <a href="/admin/reports/trend?days=30"
+       class="px-4 py-2 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg text-sm">
+        📈 30日趨勢
+    </a>
+    <a href="/dispatcher"
+       class="px-4 py-2 bg-green-100 hover:bg-green-200 text-green-700 rounded-lg text-sm">
+        📡 調度台
+    </a>
+</div>
+
+<script>
+// 每日趨勢圖
+const dailyCtx = document.getElementById('dailyTrendChart').getContext('2d');
+new Chart(dailyCtx, {
+    type: 'line',
+    data: {
+        labels: {{ chart_data.labels | tojson }},
+        datasets: [
+            {
+                label: '病人數',
+                data: {{ chart_data.datasets.patients | tojson }},
+                borderColor: 'rgb(59, 130, 246)',
+                backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                fill: true,
+                tension: 0.3,
+            },
+            {
+                label: '完成數',
+                data: {{ chart_data.datasets.completed | tojson }},
+                borderColor: 'rgb(34, 197, 94)',
+                backgroundColor: 'rgba(34, 197, 94, 0.1)',
+                fill: true,
+                tension: 0.3,
+            }
+        ]
+    },
+    options: {
+        responsive: true,
+        plugins: {
+            legend: {
+                position: 'top',
+            }
+        },
+        scales: {
+            y: {
+                beginAtZero: true
+            }
+        }
+    }
+});
+
+// 今日時段圖
+const hourlyCtx = document.getElementById('hourlyChart').getContext('2d');
+new Chart(hourlyCtx, {
+    type: 'bar',
+    data: {
+        labels: {{ hourly_data | map(attribute='label') | list | tojson }},
+        datasets: [
+            {
+                label: '完成數',
+                data: {{ hourly_data | map(attribute='completed') | list | tojson }},
+                backgroundColor: 'rgba(34, 197, 94, 0.7)',
+            },
+            {
+                label: '開始數',
+                data: {{ hourly_data | map(attribute='started') | list | tojson }},
+                backgroundColor: 'rgba(59, 130, 246, 0.7)',
+            }
+        ]
+    },
+    options: {
+        responsive: true,
+        plugins: {
+            legend: {
+                position: 'top',
+            }
+        },
+        scales: {
+            y: {
+                beginAtZero: true
+            }
+        }
+    }
+});
+
+// 更新時間
+setInterval(() => {
+    const now = new Date();
+    document.getElementById('update-time').textContent = 
+        now.toLocaleTimeString('zh-TW', {hour: '2-digit', minute: '2-digit', second: '2-digit'});
+}, 1000);
+</script>
+{% endblock %}

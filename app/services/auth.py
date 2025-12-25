@@ -115,13 +115,13 @@ def get_or_create_user(db: Session, line_profile: Dict) -> User:
         db.refresh(user)
         return user
     
-    # 建立新使用者（待審核狀態，無權限）
+    # 建立新使用者 - 預設有調度員和個管師權限
     user = User(
         line_user_id=line_user_id,
         display_name=display_name,
         picture_url=picture_url,
-        permissions=[],  # 新用戶無權限
-        role="pending",
+        permissions=[Permission.DISPATCHER.value, Permission.COORDINATOR.value],  # 預設權限
+        role="active",  # 直接啟用
         last_login=datetime.utcnow(),
     )
     db.add(user)

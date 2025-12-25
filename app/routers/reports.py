@@ -112,14 +112,14 @@ async def trend_report(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin_or_dispatcher),
 ):
-    """趨勢報表"""
+    """趨勢報表（含 Chart.js 圖表）"""
     end_date = date.today()
     start_date = end_date - timedelta(days=days-1)
     
     # 取得每日摘要
     daily_summaries = stats_service.get_date_range_summary(db, start_date, end_date)
     
-    return templates.TemplateResponse("admin/trend.html", {
+    return templates.TemplateResponse("admin/trend_chart.html", {
         "request": request,
         "user": current_user,
         "days": days,
