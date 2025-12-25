@@ -237,6 +237,7 @@ async def import_patients(
                 chart_no = row.get("chart_no", row.get("病歷號", "")).strip()
                 name = row.get("name", row.get("姓名", "")).strip()
                 exam_list = row.get("exam_list", row.get("檢查項目", "")).strip()
+                package_code = row.get("package_code", row.get("套餐代碼", "")).strip()
                 
                 if not chart_no or not name:
                     errors += 1
@@ -249,12 +250,14 @@ async def import_patients(
                 
                 if existing:
                     existing.name = name
-                    existing.exam_list = exam_list
+                    existing.notes = exam_list  # 存到 notes 欄位
+                    existing.package_code = package_code
                 else:
                     patient = Patient(
                         chart_no=chart_no,
                         name=name,
-                        exam_list=exam_list,
+                        notes=exam_list,  # 存到 notes 欄位
+                        package_code=package_code,
                         exam_date=import_date,
                     )
                     db.add(patient)
@@ -295,12 +298,12 @@ async def add_patient(
     
     if existing:
         existing.name = name
-        existing.exam_list = exam_list
+        existing.notes = exam_list  # 存到 notes 欄位
     else:
         patient = Patient(
             chart_no=chart_no,
             name=name,
-            exam_list=exam_list,
+            notes=exam_list,  # 存到 notes 欄位
             exam_date=import_date,
         )
         db.add(patient)

@@ -173,11 +173,11 @@ def estimate_patient_remaining_time(
         exam_date = date.today()
     
     patient = db.query(Patient).filter(Patient.id == patient_id).first()
-    if not patient or not patient.exam_list:
+    if not patient or not patient.notes:
         return None
     
-    # 解析檢查項目
-    exam_codes = [e.strip() for e in patient.exam_list.split(',') if e.strip()]
+    # 解析檢查項目（從 notes 欄位讀取）
+    exam_codes = [e.strip() for e in patient.notes.split(',') if e.strip()]
     total_exams = len(exam_codes)
     
     # 已完成的檢查

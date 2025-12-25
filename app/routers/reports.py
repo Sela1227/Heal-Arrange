@@ -48,6 +48,7 @@ async def reports_index(
         "summary": summary,
         "station_stats": station_stats,
         "coordinator_stats": coordinator_stats,
+        "timedelta": timedelta,
     })
 
 

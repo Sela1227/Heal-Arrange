@@ -50,16 +50,17 @@ def export_patients_csv(db: Session, exam_date: date = None) -> str:
     
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(['ID', '病歷號', '姓名', '檢查日期', '檢查項目', 'VIP等級', '是否啟用'])
+    writer.writerow(['ID', '病歷號', '姓名', '套餐代碼', '檢查日期', '檢查項目', '是否完成', '是否啟用'])
     
     for p in patients:
         writer.writerow([
             p.id,
             p.chart_no,
             p.name,
+            p.package_code or '',
             p.exam_date.strftime('%Y-%m-%d') if p.exam_date else '',
-            p.exam_list or '',
-            p.vip_level,
+            p.notes or '',
+            '是' if p.is_completed else '否',
             '是' if p.is_active else '否',
         ])
     
@@ -175,9 +176,10 @@ def export_all_data_json(db: Session) -> str:
             "id": p.id,
             "chart_no": p.chart_no,
             "name": p.name,
+            "package_code": p.package_code,
             "exam_date": p.exam_date.isoformat() if p.exam_date else None,
-            "exam_list": p.exam_list,
-            "vip_level": p.vip_level,
+            "notes": p.notes,
+            "is_completed": p.is_completed,
             "is_active": p.is_active,
         })
     

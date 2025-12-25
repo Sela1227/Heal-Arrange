@@ -296,6 +296,6 @@ def export_daily_report_csv(db: Session, target_date: date = None) -> str:
             location = tracking.current_location or "-"
             updated = tracking.updated_at.strftime("%H:%M") if tracking.updated_at else "-"
         
-        lines.append(f"{patient.chart_no},{patient.name},{patient.exam_list or '-'},{status},{location},{coordinator_name},{updated}")
+        lines.append(f"{patient.chart_no},{patient.name},{patient.notes or '-'},{status},{location},{coordinator_name},{updated}")
     
     return "\n".join(lines)
