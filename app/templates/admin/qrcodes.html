@@ -1,0 +1,301 @@
+{% extends "base.html" %}
+
+{% block title %}QR Code 報到管理 - 高檢病人動態系統{% endblock %}
+
+{% block content %}
+<div class="mb-6 flex justify-between items-center">
+    <h1 class="text-2xl font-bold text-gray-800">📱 QR Code 報到管理</h1>
+    <a href="/admin" class="text-blue-500 hover:underline">← 返回管理後台</a>
+</div>
+
+<!-- 日期選擇 -->
+<div class="bg-white rounded-xl shadow p-4 mb-6">
+    <form method="GET" class="flex flex-wrap items-end gap-4">
+        <div>
+            <label class="block text-sm text-gray-600 mb-1">檢查日期</label>
+            <input type="date" name="exam_date" value="{{ exam_date }}"
+                   class="border rounded-lg px-3 py-2"
+                   onchange="this.form.submit()">
+        </div>
+        <div class="flex items-center gap-2">
+            <span class="text-gray-600">共 <span class="font-bold text-blue-600">{{ patients|length }}</span> 位病人</span>
+        </div>
+    </form>
+</div>
+
+<!-- 批次操作 -->
+<div class="bg-white rounded-xl shadow p-4 mb-6">
+    <h2 class="font-bold text-gray-700 mb-3">🖨️ 批次列印</h2>
+    <div class="flex flex-wrap gap-3">
+        <button onclick="printAllQRCodes()" 
+                class="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg">
+            🖨️ 列印全部 QR Code
+        </button>
+        <button onclick="printSelectedQRCodes()"
+                class="px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg">
+            ✅ 列印已選取
+        </button>
+        <label class="flex items-center gap-2 text-gray-600">
+            <input type="checkbox" id="selectAll" onchange="toggleSelectAll()" class="w-4 h-4">
+            全選
+        </label>
+    </div>
+</div>
+
+<!-- 病人列表 -->
+<div class="bg-white rounded-xl shadow overflow-hidden">
+    <div class="px-4 py-3 bg-gray-50 border-b">
+        <span class="font-bold text-gray-700">👥 病人 QR Code 列表</span>
+    </div>
+    
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-4">
+        {% for item in patients %}
+        <div class="border rounded-xl p-4 hover:shadow-lg transition qr-card" data-patient-id="{{ item.patient.id }}">
+            <div class="flex items-start gap-4">
+                <!-- 選取框 -->
+                <input type="checkbox" class="patient-checkbox w-5 h-5 mt-1" 
+                       data-patient-id="{{ item.patient.id }}">
+                
+                <!-- QR Code -->
+                <div class="flex-shrink-0">
+                    <img src="/checkin/api/qrcode/{{ item.patient.id }}?exam_date={{ exam_date }}" 
+                         alt="QR Code"
+                         class="w-24 h-24 border rounded"
+                         loading="lazy">
+                </div>
+                
+                <!-- 病人資訊 -->
+                <div class="flex-1 min-w-0">
+                    <div class="font-bold text-lg text-gray-800 truncate">
+                        {{ item.patient.name }}
+                    </div>
+                    <div class="text-sm text-gray-500">
+                        病歷號：{{ item.patient.chart_no }}
+                    </div>
+                    {% if item.patient.notes %}
+                    <div class="text-xs text-gray-400 mt-1 truncate">
+                        {{ item.patient.notes }}
+                    </div>
+                    {% endif %}
+                    
+                    <!-- 報到狀態 -->
+                    <div class="mt-2">
+                        {% if item.checked_in %}
+                        <span class="px-2 py-1 bg-green-100 text-green-700 rounded text-xs">
+                            ✅ 已報到
+                        </span>
+                        {% else %}
+                        <span class="px-2 py-1 bg-yellow-100 text-yellow-700 rounded text-xs">
+                            ⏳ 未報到
+                        </span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 操作按鈕 -->
+            <div class="mt-3 pt-3 border-t flex gap-2">
+                <a href="/checkin/api/qrcode/{{ item.patient.id }}?exam_date={{ exam_date }}" 
+                   target="_blank"
+                   class="flex-1 text-center px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded text-sm">
+                    📥 下載
+                </a>
+                <button onclick="printSingleQR({{ item.patient.id }}, '{{ item.patient.name }}')"
+                        class="flex-1 text-center px-3 py-1.5 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded text-sm">
+                    🖨️ 列印
+                </button>
+            </div>
+        </div>
+        {% endfor %}
+        
+        {% if not patients %}
+        <div class="col-span-full text-center py-12 text-gray-400">
+            <div class="text-4xl mb-4">📭</div>
+            <p>此日期無病人資料</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- 列印用隱藏區域 -->
+<div id="printArea" class="hidden print:block">
+</div>
+
+<style>
+@media print {
+    body * {
+        visibility: hidden;
+    }
+    #printArea, #printArea * {
+        visibility: visible;
+    }
+    #printArea {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+    }
+    .qr-print-card {
+        page-break-inside: avoid;
+        border: 1px solid #ccc;
+        padding: 20px;
+        margin: 10px;
+        text-align: center;
+        display: inline-block;
+        width: 45%;
+    }
+    .qr-print-card img {
+        width: 150px;
+        height: 150px;
+    }
+}
+</style>
+
+<script>
+const examDate = "{{ exam_date }}";
+
+function toggleSelectAll() {
+    const selectAll = document.getElementById('selectAll');
+    const checkboxes = document.querySelectorAll('.patient-checkbox');
+    checkboxes.forEach(cb => cb.checked = selectAll.checked);
+}
+
+function getSelectedPatientIds() {
+    const checkboxes = document.querySelectorAll('.patient-checkbox:checked');
+    return Array.from(checkboxes).map(cb => cb.dataset.patientId);
+}
+
+function printSingleQR(patientId, patientName) {
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>QR Code - ${patientName}</title>
+            <style>
+                body { 
+                    font-family: Arial, sans-serif; 
+                    text-align: center; 
+                    padding: 40px;
+                }
+                .card {
+                    border: 2px solid #333;
+                    padding: 30px;
+                    display: inline-block;
+                    border-radius: 10px;
+                }
+                img { width: 200px; height: 200px; }
+                h2 { margin: 20px 0 5px; }
+                p { color: #666; margin: 5px 0; }
+                .footer { margin-top: 20px; font-size: 12px; color: #999; }
+            </style>
+        </head>
+        <body>
+            <div class="card">
+                <img src="/checkin/api/qrcode/${patientId}?exam_date=${examDate}" />
+                <h2>${patientName}</h2>
+                <p>檢查日期：${examDate}</p>
+                <p class="footer">請掃描 QR Code 完成自助報到</p>
+            </div>
+            <script>
+                window.onload = function() {
+                    window.print();
+                    window.close();
+                };
+            <\/script>
+        </body>
+        </html>
+    `);
+    printWindow.document.close();
+}
+
+function printAllQRCodes() {
+    const cards = document.querySelectorAll('.qr-card');
+    if (cards.length === 0) {
+        alert('沒有可列印的 QR Code');
+        return;
+    }
+    
+    let html = generatePrintHTML(cards);
+    openPrintWindow(html);
+}
+
+function printSelectedQRCodes() {
+    const selectedIds = getSelectedPatientIds();
+    if (selectedIds.length === 0) {
+        alert('請先選取要列印的病人');
+        return;
+    }
+    
+    const cards = Array.from(document.querySelectorAll('.qr-card'))
+        .filter(card => selectedIds.includes(card.dataset.patientId));
+    
+    let html = generatePrintHTML(cards);
+    openPrintWindow(html);
+}
+
+function generatePrintHTML(cards) {
+    let cardsHtml = '';
+    cards.forEach(card => {
+        const patientId = card.dataset.patientId;
+        const name = card.querySelector('.font-bold.text-lg').textContent.trim();
+        const chartNo = card.querySelector('.text-gray-500').textContent.replace('病歷號：', '').trim();
+        
+        cardsHtml += `
+            <div class="qr-card">
+                <img src="/checkin/api/qrcode/${patientId}?exam_date=${examDate}" />
+                <h3>${name}</h3>
+                <p>${chartNo}</p>
+                <p class="date">${examDate}</p>
+            </div>
+        `;
+    });
+    
+    return `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>QR Code 批次列印</title>
+            <style>
+                body { font-family: Arial, sans-serif; }
+                .container { display: flex; flex-wrap: wrap; justify-content: center; }
+                .qr-card {
+                    border: 1px solid #ccc;
+                    padding: 15px;
+                    margin: 10px;
+                    text-align: center;
+                    width: 200px;
+                    page-break-inside: avoid;
+                }
+                .qr-card img { width: 150px; height: 150px; }
+                .qr-card h3 { margin: 10px 0 5px; font-size: 16px; }
+                .qr-card p { margin: 3px 0; font-size: 12px; color: #666; }
+                .qr-card .date { font-size: 11px; color: #999; }
+                @media print {
+                    .qr-card { border: 1px solid #000; }
+                }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                ${cardsHtml}
+            </div>
+            <script>
+                window.onload = function() {
+                    setTimeout(function() {
+                        window.print();
+                    }, 500);
+                };
+            <\/script>
+        </body>
+        </html>
+    `;
+}
+
+function openPrintWindow(html) {
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(html);
+    printWindow.document.close();
+}
+</script>
+{% endblock %}

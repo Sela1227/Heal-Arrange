@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>自助報到 - 高檢病人動態系統</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden">
+        
+        {% if success %}
+        <!-- 成功 -->
+        <div class="bg-gradient-to-r from-green-400 to-green-600 p-6 text-center">
+            <div class="text-6xl mb-4">
+                {% if already_checked_in %}
+                ℹ️
+                {% else %}
+                ✅
+                {% endif %}
+            </div>
+            <h1 class="text-2xl font-bold text-white">
+                {% if already_checked_in %}
+                已完成報到
+                {% else %}
+                報到成功！
+                {% endif %}
+            </h1>
+        </div>
+        
+        <div class="p-6">
+            <!-- 病人資訊 -->
+            {% if patient %}
+            <div class="bg-gray-50 rounded-xl p-4 mb-4">
+                <div class="text-center mb-4">
+                    <div class="text-4xl mb-2">👤</div>
+                    <div class="text-2xl font-bold text-gray-800">{{ patient.name }}</div>
+                    <div class="text-gray-500">病歷號：{{ patient.chart_no }}</div>
+                </div>
+                
+                {% if tracking %}
+                <div class="border-t pt-4 mt-4">
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="text-gray-600">目前狀態</span>
+                        <span class="px-3 py-1 rounded-full text-sm font-medium
+                            {% if tracking.current_status == 'waiting' %}
+                            bg-yellow-100 text-yellow-800
+                            {% elif tracking.current_status == 'in_exam' %}
+                            bg-blue-100 text-blue-800
+                            {% elif tracking.current_status == 'completed' %}
+                            bg-green-100 text-green-800
+                            {% else %}
+                            bg-gray-100 text-gray-800
+                            {% endif %}
+                        ">
+                            {% if tracking.current_status == 'waiting' %}
+                            ⏳ 等候中
+                            {% elif tracking.current_status == 'in_exam' %}
+                            🔬 檢查中
+                            {% elif tracking.current_status == 'moving' %}
+                            🚶 移動中
+                            {% elif tracking.current_status == 'completed' %}
+                            ✅ 已完成
+                            {% else %}
+                            {{ tracking.current_status }}
+                            {% endif %}
+                        </span>
+                    </div>
+                    {% if tracking.current_location %}
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-600">目前位置</span>
+                        <span class="font-medium text-gray-800">{{ tracking.current_location }}</span>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+            
+            <div class="text-center text-gray-600 mb-4">
+                {{ message }}
+            </div>
+            
+            <!-- 提示 -->
+            <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-700">
+                <div class="font-medium mb-1">📋 下一步</div>
+                {% if already_checked_in %}
+                <p>請依照個管師指示前往各檢查站</p>
+                {% else %}
+                <p>請至報到櫃檯完成確認，並等候個管師接待</p>
+                {% endif %}
+            </div>
+        </div>
+        
+        {% else %}
+        <!-- 失敗 -->
+        <div class="bg-gradient-to-r from-red-400 to-red-600 p-6 text-center">
+            <div class="text-6xl mb-4">❌</div>
+            <h1 class="text-2xl font-bold text-white">報到失敗</h1>
+        </div>
+        
+        <div class="p-6">
+            <div class="bg-red-50 border border-red-200 rounded-lg p-4 text-center mb-4">
+                <div class="text-red-700">{{ message }}</div>
+            </div>
+            
+            <div class="text-center text-gray-600 text-sm">
+                <p>如有問題，請洽報到櫃檯人員協助</p>
+            </div>
+        </div>
+        {% endif %}
+        
+        <!-- 底部 -->
+        <div class="bg-gray-50 px-6 py-4 text-center text-xs text-gray-400">
+            彰濱秀傳醫院 高級健檢中心
+        </div>
+    </div>
+</body>
+</html>

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-報表路由 - 統計與歷史查詢
+報表路由 - 統計、歷史查詢、PDF 匯出
 """
 
 from datetime import date, datetime, timedelta
@@ -10,13 +10,32 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..models.user import User, Permission
+from ..models.user import User, UserRole
 from ..models.exam import Exam
-from ..services.auth import get_current_user, require_admin_or_dispatcher
+from ..services.auth import get_current_user
 from ..services import stats as stats_service
+from ..services import pdf_report as pdf_service
 
 router = APIRouter(prefix="/admin/reports", tags=["報表"])
 templates = Jinja2Templates(directory="app/templates")
+
+
+def require_admin_or_dispatcher(request: Request, db: Session = Depends(get_db)) -> User:
+    """要求管理員或調度員權限"""
+    user = get_current_user(request, db)
+    if not user:
+        raise HTTPException(status_code=401, detail="請先登入")
+    
+    # 支援新權限系統
+    if hasattr(user, 'permissions') and user.permissions:
+        if 'admin' in user.permissions or 'dispatcher' in user.permissions:
+            return user
+    
+    # 向後兼容舊角色
+    if user.role in [UserRole.ADMIN.value, UserRole.DISPATCHER.value, 'admin', 'dispatcher', 'active']:
+        return user
+    
+    raise HTTPException(status_code=403, detail="需要管理員或調度員權限")
 
 
 @router.get("", response_class=HTMLResponse)
@@ -35,7 +54,6 @@ async def reports_index(
     else:
         report_date = date.today()
     
-    # 取得統計資料
     summary = stats_service.get_daily_summary(db, report_date)
     station_stats = stats_service.get_station_statistics(db, report_date)
     coordinator_stats = stats_service.get_coordinator_statistics(db, report_date)
@@ -63,7 +81,6 @@ async def history_query(
     current_user: User = Depends(require_admin_or_dispatcher),
 ):
     """歷史查詢頁面"""
-    # 處理日期
     if not end_date:
         end = date.today()
     else:
@@ -72,7 +89,6 @@ async def history_query(
         except:
             end = date.today()
     
-    # 優先使用 days 參數
     if days:
         start = end - timedelta(days=days)
     elif not start_date:
@@ -83,7 +99,6 @@ async def history_query(
         except:
             start = end - timedelta(days=7)
     
-    # 取得歷史記錄
     records = stats_service.get_history_records(
         db=db,
         start_date=start,
@@ -92,7 +107,6 @@ async def history_query(
         limit=200
     )
     
-    # 取得檢查項目列表
     exams = db.query(Exam).filter(Exam.is_active == True).all()
     
     return templates.TemplateResponse("admin/history.html", {
@@ -113,14 +127,13 @@ async def trend_report(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin_or_dispatcher),
 ):
-    """趨勢報表（含 Chart.js 圖表）"""
+    """趨勢報表"""
     end_date = date.today()
     start_date = end_date - timedelta(days=days-1)
     
-    # 取得每日摘要
     daily_summaries = stats_service.get_date_range_summary(db, start_date, end_date)
     
-    return templates.TemplateResponse("admin/trend_chart.html", {
+    return templates.TemplateResponse("admin/trend.html", {
         "request": request,
         "user": current_user,
         "days": days,
@@ -128,8 +141,13 @@ async def trend_report(
         "end_date": end_date,
         "today": date.today(),
         "daily_summaries": daily_summaries,
+        "timedelta": timedelta,
     })
 
+
+# ======================
+# CSV 匯出
+# ======================
 
 @router.get("/export/daily")
 async def export_daily_csv(
@@ -155,6 +173,63 @@ async def export_daily_csv(
             "Content-Disposition": f"attachment; filename=daily_report_{report_date}.csv"
         }
     )
+
+
+# ======================
+# PDF 匯出
+# ======================
+
+@router.get("/export/pdf")
+async def export_daily_pdf(
+    target_date: str = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin_or_dispatcher),
+):
+    """匯出每日報表 PDF"""
+    if target_date:
+        try:
+            report_date = date.fromisoformat(target_date)
+        except:
+            report_date = date.today()
+    else:
+        report_date = date.today()
+    
+    try:
+        pdf_content = pdf_service.generate_daily_report_pdf(db, report_date)
+        
+        return Response(
+            content=pdf_content,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f"attachment; filename=daily_report_{report_date}.pdf"
+            }
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"PDF 生成失敗：{str(e)}")
+
+
+@router.get("/export/trend-pdf")
+async def export_trend_pdf(
+    days: int = 7,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin_or_dispatcher),
+):
+    """匯出趨勢報表 PDF"""
+    end_date = date.today()
+    start_date = end_date - timedelta(days=days-1)
+    
+    try:
+        pdf_content = pdf_service.generate_trend_report_pdf(db, start_date, end_date)
+        
+        return Response(
+            content=pdf_content,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f"attachment; filename=trend_report_{days}days.pdf"
+            }
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"PDF 生成失敗：{str(e)}")
 
 
 # ======================
