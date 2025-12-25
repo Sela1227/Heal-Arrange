@@ -29,13 +29,14 @@ class User(Base):
     __tablename__ = "users"
     
     id = Column(Integer, primary_key=True, index=True)
-    line_user_id = Column(String(100), unique=True, nullable=False, index=True)
+    # 資料庫欄位名稱是 line_id
+    line_user_id = Column("line_id", String(100), unique=True, nullable=False, index=True)
     display_name = Column(String(100), nullable=True)
     picture_url = Column(String(500), nullable=True)
     
     # 新權限系統：JSON 陣列存放多個權限
     # 例如: ["admin", "dispatcher"] 表示同時擁有管理員和調度員權限
-    permissions = Column(JSON, default=list, nullable=False)
+    permissions = Column(JSON, default=list, nullable=True)
     
     # 保留 role 欄位用於向後兼容和顯示主要角色
     # 值為 "pending" | "active" | "disabled"
@@ -44,8 +45,8 @@ class User(Base):
     is_active = Column(Boolean, default=True)
     
     created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    last_login = Column(DateTime, nullable=True)
+    # 資料庫欄位名稱是 last_login_at
+    last_login = Column("last_login_at", DateTime, nullable=True)
     
     def __repr__(self):
         return f"<User {self.display_name}>"
