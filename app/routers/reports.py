@@ -10,23 +10,13 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..models.user import User, UserRole
+from ..models.user import User, Permission
 from ..models.exam import Exam
-from ..services.auth import get_current_user
+from ..services.auth import get_current_user, require_admin_or_dispatcher
 from ..services import stats as stats_service
 
 router = APIRouter(prefix="/admin/reports", tags=["報表"])
 templates = Jinja2Templates(directory="app/templates")
-
-
-def require_admin_or_dispatcher(request: Request, db: Session = Depends(get_db)) -> User:
-    """要求管理員或調度員權限"""
-    user = get_current_user(request, db)
-    if not user:
-        raise HTTPException(status_code=401, detail="請先登入")
-    if user.role not in [UserRole.ADMIN.value, UserRole.DISPATCHER.value]:
-        raise HTTPException(status_code=403, detail="需要管理員或調度員權限")
-    return user
 
 
 @router.get("", response_class=HTMLResponse)

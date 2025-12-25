@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, and_
 
 from ..models.patient import Patient
-from ..models.user import User, UserRole
+from ..models.user import User, Permission
 from ..models.exam import Exam
 from ..models.tracking import PatientTracking, TrackingHistory, CoordinatorAssignment, TrackingStatus
 from ..models.equipment import Equipment, EquipmentLog, EquipmentStatus
@@ -50,7 +50,7 @@ def get_daily_summary(db: Session, target_date: date = None) -> Dict:
         Equipment.is_active == True
     ).count()
     
-    # 個管師統計
+    # 個管師統計 - 使用新的權限系統
     active_coordinators = db.query(CoordinatorAssignment).filter(
         CoordinatorAssignment.exam_date == target_date,
         CoordinatorAssignment.is_active == True
@@ -134,10 +134,9 @@ def get_coordinator_statistics(db: Session, target_date: date = None) -> List[Di
     if target_date is None:
         target_date = date.today()
     
-    coordinators = db.query(User).filter(
-        User.role == UserRole.COORDINATOR.value,
-        User.is_active == True
-    ).all()
+    # 取得所有有個管師權限的使用者
+    all_users = db.query(User).filter(User.is_active == True).all()
+    coordinators = [u for u in all_users if u.is_coordinator]
     
     stats = []
     

@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+
+{% block title %}高檢病人動態系統{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto">
+    <!-- 歡迎區塊 -->
+    <div class="bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl shadow-lg p-6 mb-8 text-white">
+        <div class="flex items-center justify-between">
+            <div>
+                <h1 class="text-2xl font-bold mb-2">👋 {{ user.display_name }}，您好！</h1>
+                <p class="opacity-90">歡迎使用高檢病人動態系統</p>
+            </div>
+            {% if user.picture_url %}
+            <img src="{{ user.picture_url }}" class="w-16 h-16 rounded-full border-2 border-white shadow" alt="">
+            {% endif %}
+        </div>
+        
+        <!-- 權限標籤 -->
+        <div class="mt-4 flex flex-wrap gap-2">
+            {% if user.is_admin %}
+            <span class="px-3 py-1 bg-white/20 rounded-full text-sm">🔧 管理員</span>
+            {% endif %}
+            {% if user.is_dispatcher %}
+            <span class="px-3 py-1 bg-white/20 rounded-full text-sm">📊 調度員</span>
+            {% endif %}
+            {% if user.is_coordinator %}
+            <span class="px-3 py-1 bg-white/20 rounded-full text-sm">👤 個管師</span>
+            {% endif %}
+            {% if user.is_pending %}
+            <span class="px-3 py-1 bg-orange-400/50 rounded-full text-sm">⏳ 待審核</span>
+            {% endif %}
+        </div>
+    </div>
+    
+    {% if user.is_pending %}
+    <!-- 待審核提示 -->
+    <div class="bg-orange-50 border border-orange-200 rounded-xl p-6 text-center">
+        <div class="text-5xl mb-4">⏳</div>
+        <h2 class="text-xl font-bold text-orange-800 mb-2">帳號審核中</h2>
+        <p class="text-orange-600">
+            您的帳號正在等待管理員審核，請稍候。<br>
+            審核通過後即可使用系統功能。
+        </p>
+    </div>
+    
+    {% else %}
+    <!-- 功能入口 -->
+    <h2 class="text-lg font-bold text-gray-700 mb-4">🚀 功能入口</h2>
+    
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {% if user.is_coordinator %}
+        <!-- 個管師功能 -->
+        <a href="/coordinator" 
+           class="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition group border-2 border-green-100 hover:border-green-300">
+            <div class="flex items-center mb-3">
+                <div class="text-4xl mr-4 group-hover:scale-110 transition">👤</div>
+                <div>
+                    <h3 class="font-bold text-lg text-gray-800">我的病人</h3>
+                    <p class="text-sm text-gray-500">狀態回報、陪同檢查</p>
+                </div>
+            </div>
+            <div class="text-green-600 text-sm font-medium">
+                📱 適合手機使用 →
+            </div>
+        </a>
+        {% endif %}
+        
+        {% if user.is_dispatcher %}
+        <!-- 調度員功能 -->
+        <a href="/dispatcher" 
+           class="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition group border-2 border-blue-100 hover:border-blue-300">
+            <div class="flex items-center mb-3">
+                <div class="text-4xl mr-4 group-hover:scale-110 transition">📊</div>
+                <div>
+                    <h3 class="font-bold text-lg text-gray-800">調度台</h3>
+                    <p class="text-sm text-gray-500">病人指派、即時監控</p>
+                </div>
+            </div>
+            <div class="text-blue-600 text-sm font-medium">
+                🖥️ 適合電腦使用 →
+            </div>
+        </a>
+        {% endif %}
+        
+        {% if user.is_admin %}
+        <!-- 管理員功能 -->
+        <a href="/admin" 
+           class="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition group border-2 border-purple-100 hover:border-purple-300">
+            <div class="flex items-center mb-3">
+                <div class="text-4xl mr-4 group-hover:scale-110 transition">🔧</div>
+                <div>
+                    <h3 class="font-bold text-lg text-gray-800">管理後台</h3>
+                    <p class="text-sm text-gray-500">帳號、設備、系統設定</p>
+                </div>
+            </div>
+            <div class="text-purple-600 text-sm font-medium">
+                ⚙️ 系統管理 →
+            </div>
+        </a>
+        {% endif %}
+        
+        {% if user.is_dispatcher or user.is_admin %}
+        <!-- 報表功能 -->
+        <a href="/admin/reports" 
+           class="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition group">
+            <div class="flex items-center mb-3">
+                <div class="text-4xl mr-4 group-hover:scale-110 transition">📈</div>
+                <div>
+                    <h3 class="font-bold text-lg text-gray-800">統計報表</h3>
+                    <p class="text-sm text-gray-500">數據分析、匯出</p>
+                </div>
+            </div>
+        </a>
+        {% endif %}
+    </div>
+    {% endif %}
+    
+    <!-- 登出 -->
+    <div class="mt-8 text-center">
+        <a href="/auth/logout" class="text-gray-400 hover:text-gray-600 text-sm">
+            🚪 登出
+        </a>
+    </div>
+</div>
+{% endblock %}

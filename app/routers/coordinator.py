@@ -10,25 +10,15 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..models.user import User, UserRole
+from ..models.user import User, Permission
 from ..models.exam import Exam
 from ..models.tracking import TrackingStatus
 from ..models.equipment import Equipment, EquipmentLog, EquipmentStatus
-from ..services.auth import get_current_user
+from ..services.auth import get_current_user, require_coordinator
 from ..services import tracking as tracking_service
 
 router = APIRouter(prefix="/coordinator", tags=["個管師"])
 templates = Jinja2Templates(directory="app/templates")
-
-
-def require_coordinator(request: Request, db: Session = Depends(get_db)) -> User:
-    """要求個管師或管理員權限"""
-    user = get_current_user(request, db)
-    if not user:
-        raise HTTPException(status_code=401, detail="請先登入")
-    if user.role not in [UserRole.COORDINATOR.value, UserRole.ADMIN.value]:
-        raise HTTPException(status_code=403, detail="需要個管師權限")
-    return user
 
 
 @router.get("", response_class=HTMLResponse)

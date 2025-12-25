@@ -3,7 +3,7 @@
 資料模型
 """
 
-from .user import User, UserRole
+from .user import User, Permission, UserStatus, ALL_PERMISSIONS
 from .patient import Patient
 from .exam import Exam, DEFAULT_EXAMS
 from .tracking import (
@@ -14,3 +14,6 @@ from .tracking import (
     TrackingAction,
 )
 from .equipment import Equipment, EquipmentLog, EquipmentStatus
+
+# 向後兼容
+from .user import UserRole

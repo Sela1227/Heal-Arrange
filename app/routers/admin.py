@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
 """
-管理後台路由
+管理後台路由 - 支援多權限管理
 """
 
 from datetime import date
+from typing import List
 from fastapi import APIRouter, Request, Depends, HTTPException, Form, UploadFile, File
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
@@ -12,24 +13,14 @@ import csv
 import io
 
 from ..database import get_db
-from ..models.user import User, UserRole
+from ..models.user import User, Permission, ALL_PERMISSIONS
 from ..models.patient import Patient
 from ..models.exam import Exam, DEFAULT_EXAMS
 from ..models.equipment import Equipment, EquipmentLog, EquipmentStatus
-from ..services.auth import get_current_user, require_role
+from ..services.auth import get_current_user, require_admin
 
 router = APIRouter(prefix="/admin", tags=["管理後台"])
 templates = Jinja2Templates(directory="app/templates")
-
-
-def require_admin(request: Request, db: Session = Depends(get_db)) -> User:
-    """要求管理員權限"""
-    user = get_current_user(request, db)
-    if not user:
-        raise HTTPException(status_code=401, detail="請先登入")
-    if user.role != UserRole.ADMIN.value:
-        raise HTTPException(status_code=403, detail="需要管理員權限")
-    return user
 
 
 @router.get("", response_class=HTMLResponse)
@@ -40,7 +31,18 @@ async def admin_index(
 ):
     """管理後台首頁"""
     user_count = db.query(User).count()
-    pending_count = db.query(User).filter(User.role == UserRole.PENDING.value).count()
+    pending_count = db.query(User).filter(
+        User.is_active == True,
+        User.permissions == []  # JSON 空陣列
+    ).count()
+    
+    # 也檢查 permissions 為 null 的情況
+    pending_null = db.query(User).filter(
+        User.is_active == True,
+        User.permissions.is_(None)
+    ).count()
+    pending_count += pending_null
+    
     today = date.today()
     patient_count = db.query(Patient).filter(Patient.exam_date == today).count()
     exam_count = db.query(Exam).filter(Exam.is_active == True).count()
@@ -63,7 +65,7 @@ async def admin_index(
 
 
 # ======================
-# 帳號管理
+# 帳號管理（多權限版本）
 # ======================
 
 @router.get("/users", response_class=HTMLResponse)
@@ -79,29 +81,35 @@ async def admin_users(
         "request": request,
         "user": current_user,
         "users": users,
-        "roles": [r.value for r in UserRole],
+        "all_permissions": ALL_PERMISSIONS,
     })
 
 
-@router.post("/users/{user_id}/role")
-async def update_user_role(
+@router.post("/users/{user_id}/permissions")
+async def update_user_permissions(
     user_id: int,
-    role: str = Form(...),
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
-    """更新用戶角色"""
-    if role not in [r.value for r in UserRole]:
-        raise HTTPException(status_code=400, detail="無效的角色")
-    
+    """更新使用者權限"""
     target_user = db.query(User).filter(User.id == user_id).first()
     if not target_user:
-        raise HTTPException(status_code=404, detail="用戶不存在")
+        raise HTTPException(status_code=404, detail="使用者不存在")
     
     if target_user.id == current_user.id:
-        raise HTTPException(status_code=400, detail="不能修改自己的角色")
+        raise HTTPException(status_code=400, detail="不能修改自己的權限")
     
-    target_user.role = role
+    # 從表單取得選中的權限
+    form_data = await request.form()
+    new_permissions = form_data.getlist("permissions")
+    
+    # 驗證權限值
+    valid_permissions = [p["value"] for p in ALL_PERMISSIONS]
+    new_permissions = [p for p in new_permissions if p in valid_permissions]
+    
+    # 更新權限
+    target_user.set_permissions(new_permissions)
     db.commit()
     
     return RedirectResponse(url="/admin/users", status_code=302)
@@ -113,10 +121,10 @@ async def toggle_user_active(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
-    """啟用/停用用戶"""
+    """啟用/停用使用者"""
     target_user = db.query(User).filter(User.id == user_id).first()
     if not target_user:
-        raise HTTPException(status_code=404, detail="用戶不存在")
+        raise HTTPException(status_code=404, detail="使用者不存在")
     
     if target_user.id == current_user.id:
         raise HTTPException(status_code=400, detail="不能停用自己")
@@ -127,8 +135,67 @@ async def toggle_user_active(
     return RedirectResponse(url="/admin/users", status_code=302)
 
 
+@router.post("/users/{user_id}/approve")
+async def approve_user(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """快速核准使用者（給予個管師權限）"""
+    target_user = db.query(User).filter(User.id == user_id).first()
+    if not target_user:
+        raise HTTPException(status_code=404, detail="使用者不存在")
+    
+    # 預設給予個管師權限
+    target_user.add_permission(Permission.COORDINATOR.value)
+    db.commit()
+    
+    return RedirectResponse(url="/admin/users", status_code=302)
+
+
+@router.post("/users/{user_id}/grant-all")
+async def grant_all_permissions(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """給予所有權限"""
+    target_user = db.query(User).filter(User.id == user_id).first()
+    if not target_user:
+        raise HTTPException(status_code=404, detail="使用者不存在")
+    
+    if target_user.id == current_user.id:
+        raise HTTPException(status_code=400, detail="不能修改自己的權限")
+    
+    all_perms = [p["value"] for p in ALL_PERMISSIONS]
+    target_user.set_permissions(all_perms)
+    db.commit()
+    
+    return RedirectResponse(url="/admin/users", status_code=302)
+
+
+@router.post("/users/{user_id}/revoke-all")
+async def revoke_all_permissions(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """撤銷所有權限"""
+    target_user = db.query(User).filter(User.id == user_id).first()
+    if not target_user:
+        raise HTTPException(status_code=404, detail="使用者不存在")
+    
+    if target_user.id == current_user.id:
+        raise HTTPException(status_code=400, detail="不能修改自己的權限")
+    
+    target_user.set_permissions([])
+    db.commit()
+    
+    return RedirectResponse(url="/admin/users", status_code=302)
+
+
 # ======================
-# 病人匯入
+# 以下為原有功能（病人、檢查項目、設備管理）
 # ======================
 
 @router.get("/patients", response_class=HTMLResponse)

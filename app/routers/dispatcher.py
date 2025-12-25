@@ -10,26 +10,16 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..models.user import User, UserRole
+from ..models.user import User, Permission
 from ..models.patient import Patient
 from ..models.exam import Exam
 from ..models.tracking import PatientTracking, CoordinatorAssignment
 from ..models.equipment import Equipment, EquipmentLog, EquipmentStatus
-from ..services.auth import get_current_user
+from ..services.auth import get_current_user, require_dispatcher
 from ..services import tracking as tracking_service
 
 router = APIRouter(prefix="/dispatcher", tags=["調度員"])
 templates = Jinja2Templates(directory="app/templates")
-
-
-def require_dispatcher(request: Request, db: Session = Depends(get_db)) -> User:
-    """要求調度員或管理員權限"""
-    user = get_current_user(request, db)
-    if not user:
-        raise HTTPException(status_code=401, detail="請先登入")
-    if user.role not in [UserRole.DISPATCHER.value, UserRole.ADMIN.value]:
-        raise HTTPException(status_code=403, detail="需要調度員權限")
-    return user
 
 
 @router.get("", response_class=HTMLResponse)
@@ -53,11 +43,12 @@ async def dispatcher_dashboard(
     # 取得各站摘要
     station_summary = tracking_service.get_station_summary(db, today)
     
-    # 取得所有個管師
+    # 取得所有個管師（有個管師權限的使用者）
     coordinators = db.query(User).filter(
-        User.role == UserRole.COORDINATOR.value,
         User.is_active == True
     ).all()
+    # 過濾出有個管師權限的
+    coordinators = [u for u in coordinators if u.is_coordinator]
     
     # 取得所有檢查項目
     exams = db.query(Exam).filter(Exam.is_active == True).all()
@@ -183,10 +174,8 @@ async def get_patients_partial(
         info = tracking_service.get_patient_with_tracking(db, p.id, today)
         patient_list.append(info)
     
-    coordinators = db.query(User).filter(
-        User.role == UserRole.COORDINATOR.value,
-        User.is_active == True
-    ).all()
+    coordinators = db.query(User).filter(User.is_active == True).all()
+    coordinators = [u for u in coordinators if u.is_coordinator]
     
     exams = db.query(Exam).filter(Exam.is_active == True).all()
     
