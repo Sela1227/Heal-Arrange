@@ -1,9 +1,11 @@
 # -*- coding: utf-8 -*-
 """
-認證服務 - LINE Login + 權限檢查
+認證服務 - LINE Login + JWT + 權限檢查
 """
 
 import httpx
+import jwt
+from datetime import datetime, timedelta
 from typing import Optional, List, Dict
 from urllib.parse import urlencode
 from fastapi import Request, HTTPException, Depends
@@ -12,6 +14,36 @@ from sqlalchemy.orm import Session
 from ..config import settings
 from ..database import get_db
 from ..models.user import User, Permission
+
+
+# ===================================
+# JWT 設定
+# ===================================
+
+JWT_SECRET = settings.SECRET_KEY
+JWT_ALGORITHM = "HS256"
+JWT_EXPIRATION_DAYS = 7
+
+
+def create_access_token(user_id: int) -> str:
+    """建立 JWT Token"""
+    payload = {
+        "user_id": user_id,
+        "exp": datetime.utcnow() + timedelta(days=JWT_EXPIRATION_DAYS),
+        "iat": datetime.utcnow(),
+    }
+    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+
+
+def decode_access_token(token: str) -> Optional[Dict]:
+    """解碼 JWT Token"""
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        return payload
+    except jwt.ExpiredSignatureError:
+        return None
+    except jwt.InvalidTokenError:
+        return None
 
 
 # ===================================
@@ -30,7 +62,7 @@ def get_line_login_url(state: str = "default") -> str:
     return f"https://access.line.me/oauth2/v2.1/authorize?{urlencode(params)}"
 
 
-async def get_line_token(code: str) -> Dict:
+async def exchange_code_for_token(code: str) -> Dict:
     """用 authorization code 換取 access token"""
     async with httpx.AsyncClient() as client:
         response = await client.post(
@@ -65,25 +97,12 @@ async def get_line_profile(access_token: str) -> Dict:
         return response.json()
 
 
-async def verify_line_token(id_token: str) -> Dict:
-    """驗證 LINE ID Token"""
-    async with httpx.AsyncClient() as client:
-        response = await client.post(
-            "https://api.line.me/oauth2/v2.1/verify",
-            data={
-                "id_token": id_token,
-                "client_id": settings.LINE_CHANNEL_ID,
-            },
-        )
-        
-        if response.status_code != 200:
-            return None
-        
-        return response.json()
-
-
-def get_or_create_user(db: Session, line_user_id: str, display_name: str, picture_url: str = None) -> User:
+def get_or_create_user(db: Session, line_profile: Dict) -> User:
     """取得或建立使用者"""
+    line_user_id = line_profile.get("userId")
+    display_name = line_profile.get("displayName", "未知")
+    picture_url = line_profile.get("pictureUrl")
+    
     user = db.query(User).filter(User.line_user_id == line_user_id).first()
     
     if user:
@@ -91,6 +110,7 @@ def get_or_create_user(db: Session, line_user_id: str, display_name: str, pictur
         user.display_name = display_name
         if picture_url:
             user.picture_url = picture_url
+        user.last_login = datetime.utcnow()
         db.commit()
         db.refresh(user)
         return user
@@ -102,6 +122,7 @@ def get_or_create_user(db: Session, line_user_id: str, display_name: str, pictur
         picture_url=picture_url,
         permissions=[],  # 新用戶無權限
         role="pending",
+        last_login=datetime.utcnow(),
     )
     db.add(user)
     db.commit()
@@ -111,12 +132,20 @@ def get_or_create_user(db: Session, line_user_id: str, display_name: str, pictur
 
 
 # ===================================
-# Session 與權限檢查
+# 從 Cookie 取得當前用戶
 # ===================================
 
 def get_current_user(request: Request, db: Session) -> Optional[User]:
-    """從 Session 取得當前使用者"""
-    user_id = request.session.get("user_id")
+    """從 JWT Cookie 取得當前使用者"""
+    token = request.cookies.get("access_token")
+    if not token:
+        return None
+    
+    payload = decode_access_token(token)
+    if not payload:
+        return None
+    
+    user_id = payload.get("user_id")
     if not user_id:
         return None
     
@@ -145,7 +174,9 @@ def require_approved(request: Request, db: Session = Depends(get_db)) -> User:
     return user
 
 
-# ===== 權限檢查 Dependency =====
+# ===================================
+# 權限檢查 Dependency
+# ===================================
 
 def require_permission(*permissions: str):
     """
@@ -154,11 +185,6 @@ def require_permission(*permissions: str):
     使用方式：
         @router.get("/admin")
         async def admin_page(user: User = Depends(require_permission("admin"))):
-            ...
-        
-        # 要求任一權限
-        @router.get("/manage")
-        async def manage_page(user: User = Depends(require_permission("admin", "dispatcher"))):
             ...
     """
     def dependency(request: Request, db: Session = Depends(get_db)) -> User:
@@ -183,7 +209,9 @@ def require_permission(*permissions: str):
     return dependency
 
 
-# ===== 便捷權限檢查函數 =====
+# ===================================
+# 便捷權限檢查函數
+# ===================================
 
 def require_admin(request: Request, db: Session = Depends(get_db)) -> User:
     """要求管理員權限"""
@@ -225,13 +253,32 @@ def require_admin_or_dispatcher(request: Request, db: Session = Depends(get_db))
     return user
 
 
-# ===== 角色轉換輔助（向後兼容）=====
+# ===================================
+# 向後兼容 - 舊角色檢查
+# ===================================
+
+def require_role(*roles: str):
+    """舊版角色檢查（向後兼容）"""
+    def dependency(request: Request, db: Session = Depends(get_db)) -> User:
+        user = get_current_user(request, db)
+        if not user:
+            raise HTTPException(status_code=401, detail="請先登入")
+        
+        for role in roles:
+            if role == "admin" and user.is_admin:
+                return user
+            if role == "dispatcher" and (user.is_dispatcher or user.is_admin):
+                return user
+            if role == "coordinator" and (user.is_coordinator or user.is_admin):
+                return user
+        
+        raise HTTPException(status_code=403, detail="權限不足")
+    
+    return dependency
+
 
 def migrate_role_to_permissions(user: User) -> List[str]:
-    """
-    將舊的 role 轉換為新的 permissions
-    用於資料庫遷移
-    """
+    """將舊的 role 轉換為新的 permissions（遷移用）"""
     role = user.role
     
     if role == "admin":
@@ -240,5 +287,5 @@ def migrate_role_to_permissions(user: User) -> List[str]:
         return [Permission.DISPATCHER.value]
     elif role == "coordinator":
         return [Permission.COORDINATOR.value]
-    else:  # pending or other
+    else:
         return []
