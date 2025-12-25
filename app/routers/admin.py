@@ -3,7 +3,7 @@
 管理後台路由 - 支援多權限管理
 """
 
-from datetime import date
+from datetime import date, datetime, timedelta
 from typing import List
 from fastapi import APIRouter, Request, Depends, HTTPException, Form, UploadFile, File
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
@@ -522,3 +522,297 @@ async def delete_equipment(
         equipment.is_active = False
         db.commit()
     return RedirectResponse(url="/admin/equipment", status_code=302)
+
+
+# ======================
+# 操作日誌
+# ======================
+
+@router.get("/audit", response_class=HTMLResponse)
+async def admin_audit(
+    request: Request,
+    start_date: str = None,
+    end_date: str = None,
+    action: str = None,
+    user_id: int = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """操作日誌頁面"""
+    from ..services import audit as audit_service
+    from ..models.audit import AuditLog
+    
+    # 處理日期
+    today = date.today()
+    if not end_date:
+        end = today
+    else:
+        try:
+            end = date.fromisoformat(end_date)
+        except:
+            end = today
+    
+    if not start_date:
+        start = end - timedelta(days=7)
+    else:
+        try:
+            start = date.fromisoformat(start_date)
+        except:
+            start = end - timedelta(days=7)
+    
+    # 查詢日誌
+    logs = audit_service.get_audit_logs(
+        db=db,
+        start_date=start,
+        end_date=end,
+        action=action if action else None,
+        user_id=user_id if user_id else None,
+        limit=100
+    )
+    
+    # 統計
+    total_count = db.query(AuditLog).count()
+    today_count = audit_service.get_audit_log_count(db, start_date=today, end_date=today)
+    
+    # 活躍使用者數
+    from sqlalchemy import func, distinct
+    unique_users = db.query(func.count(distinct(AuditLog.user_id))).filter(
+        AuditLog.created_at >= datetime.combine(start, datetime.min.time()),
+        AuditLog.user_id.isnot(None)
+    ).scalar() or 0
+    
+    # 所有使用者（用於篩選）
+    users = db.query(User).filter(User.is_active == True).all()
+    
+    return templates.TemplateResponse("admin/audit.html", {
+        "request": request,
+        "user": current_user,
+        "logs": logs,
+        "start_date": start,
+        "end_date": end,
+        "selected_action": action,
+        "selected_user_id": user_id,
+        "all_actions": audit_service.ALL_ACTIONS,
+        "users": users,
+        "total_count": total_count,
+        "today_count": today_count,
+        "unique_users": unique_users,
+    })
+
+
+@router.get("/audit/export")
+async def export_audit_logs(
+    start_date: str = None,
+    end_date: str = None,
+    action: str = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """匯出操作日誌 CSV"""
+    from ..services import audit as audit_service
+    
+    # 處理日期
+    today = date.today()
+    try:
+        start = date.fromisoformat(start_date) if start_date else today - timedelta(days=30)
+        end = date.fromisoformat(end_date) if end_date else today
+    except:
+        start = today - timedelta(days=30)
+        end = today
+    
+    csv_content = audit_service.export_audit_logs_csv(db, start_date=start, end_date=end)
+    
+    # 記錄操作
+    audit_service.log_user_action(
+        db=db,
+        user=current_user,
+        action="data_export",
+        request=None,
+        target_type="audit_log",
+        details={"start_date": str(start), "end_date": str(end)}
+    )
+    
+    return Response(
+        content=csv_content.encode("utf-8-sig"),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename=audit_logs_{start}_{end}.csv"}
+    )
+
+
+# ======================
+# 資料備份
+# ======================
+
+@router.get("/backup", response_class=HTMLResponse)
+async def admin_backup(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """資料備份頁面"""
+    from ..services import backup as backup_service
+    
+    summary = backup_service.get_backup_summary(db)
+    
+    return templates.TemplateResponse("admin/backup.html", {
+        "request": request,
+        "user": current_user,
+        "summary": summary,
+        "today": date.today(),
+    })
+
+
+@router.get("/backup/export/users")
+async def export_users(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """匯出使用者 CSV"""
+    from ..services import backup as backup_service
+    from ..services import audit as audit_service
+    
+    csv_content = backup_service.export_users_csv(db)
+    
+    audit_service.log_user_action(
+        db=db, user=current_user, action="data_export",
+        target_type="users", details={"format": "csv"}
+    )
+    
+    return Response(
+        content=csv_content.encode("utf-8-sig"),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename=users_{date.today()}.csv"}
+    )
+
+
+@router.get("/backup/export/patients")
+async def export_patients(
+    exam_date: str = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """匯出病人 CSV"""
+    from ..services import backup as backup_service
+    from ..services import audit as audit_service
+    
+    target_date = None
+    if exam_date:
+        try:
+            target_date = date.fromisoformat(exam_date)
+        except:
+            pass
+    
+    csv_content = backup_service.export_patients_csv(db, exam_date=target_date)
+    
+    audit_service.log_user_action(
+        db=db, user=current_user, action="data_export",
+        target_type="patients", details={"format": "csv", "date": str(target_date) if target_date else "all"}
+    )
+    
+    filename = f"patients_{target_date or 'all'}_{date.today()}.csv"
+    return Response(
+        content=csv_content.encode("utf-8-sig"),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
+
+@router.get("/backup/export/exams")
+async def export_exams(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """匯出檢查項目 CSV"""
+    from ..services import backup as backup_service
+    from ..services import audit as audit_service
+    
+    csv_content = backup_service.export_exams_csv(db)
+    
+    audit_service.log_user_action(
+        db=db, user=current_user, action="data_export",
+        target_type="exams", details={"format": "csv"}
+    )
+    
+    return Response(
+        content=csv_content.encode("utf-8-sig"),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename=exams_{date.today()}.csv"}
+    )
+
+
+@router.get("/backup/export/equipment")
+async def export_equipment(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """匯出設備 CSV"""
+    from ..services import backup as backup_service
+    from ..services import audit as audit_service
+    
+    csv_content = backup_service.export_equipment_csv(db)
+    
+    audit_service.log_user_action(
+        db=db, user=current_user, action="data_export",
+        target_type="equipment", details={"format": "csv"}
+    )
+    
+    return Response(
+        content=csv_content.encode("utf-8-sig"),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename=equipment_{date.today()}.csv"}
+    )
+
+
+@router.get("/backup/export/tracking")
+async def export_tracking(
+    exam_date: str = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """匯出追蹤記錄 CSV"""
+    from ..services import backup as backup_service
+    from ..services import audit as audit_service
+    
+    target_date = None
+    if exam_date:
+        try:
+            target_date = date.fromisoformat(exam_date)
+        except:
+            pass
+    
+    csv_content = backup_service.export_tracking_history_csv(db, exam_date=target_date)
+    
+    audit_service.log_user_action(
+        db=db, user=current_user, action="data_export",
+        target_type="tracking", details={"format": "csv", "date": str(target_date) if target_date else "all"}
+    )
+    
+    filename = f"tracking_{target_date or 'all'}_{date.today()}.csv"
+    return Response(
+        content=csv_content.encode("utf-8-sig"),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
+
+@router.get("/backup/export/full")
+async def export_full_backup(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """完整備份 JSON"""
+    from ..services import backup as backup_service
+    from ..services import audit as audit_service
+    
+    json_content = backup_service.export_all_data_json(db)
+    
+    audit_service.log_user_action(
+        db=db, user=current_user, action="data_backup",
+        details={"format": "json", "type": "full"}
+    )
+    
+    return Response(
+        content=json_content.encode("utf-8"),
+        media_type="application/json",
+        headers={"Content-Disposition": f"attachment; filename=heal_arrange_backup_{date.today()}.json"}
+    )

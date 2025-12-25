@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+
+{% block title %}資料備份 - 高檢病人動態系統{% endblock %}
+
+{% block content %}
+<div class="mb-6 flex justify-between items-center">
+    <h1 class="text-2xl font-bold text-gray-800">💾 資料備份</h1>
+    <a href="/admin" class="text-blue-500 hover:underline">← 返回管理後台</a>
+</div>
+
+<!-- 備份摘要 -->
+<div class="bg-white rounded-xl shadow p-6 mb-6">
+    <h2 class="text-lg font-bold text-gray-700 mb-4">📊 資料摘要</h2>
+    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+        <div class="text-center p-4 bg-blue-50 rounded-lg">
+            <div class="text-2xl font-bold text-blue-600">{{ summary.users }}</div>
+            <div class="text-sm text-gray-500">使用者</div>
+        </div>
+        <div class="text-center p-4 bg-green-50 rounded-lg">
+            <div class="text-2xl font-bold text-green-600">{{ summary.patients }}</div>
+            <div class="text-sm text-gray-500">病人</div>
+        </div>
+        <div class="text-center p-4 bg-purple-50 rounded-lg">
+            <div class="text-2xl font-bold text-purple-600">{{ summary.exams }}</div>
+            <div class="text-sm text-gray-500">檢查項目</div>
+        </div>
+        <div class="text-center p-4 bg-orange-50 rounded-lg">
+            <div class="text-2xl font-bold text-orange-600">{{ summary.equipment }}</div>
+            <div class="text-sm text-gray-500">設備</div>
+        </div>
+        <div class="text-center p-4 bg-red-50 rounded-lg">
+            <div class="text-2xl font-bold text-red-600">{{ summary.tracking_history }}</div>
+            <div class="text-sm text-gray-500">追蹤記錄</div>
+        </div>
+        <div class="text-center p-4 bg-gray-50 rounded-lg">
+            <div class="text-2xl font-bold text-gray-600">{{ summary.equipment_logs }}</div>
+            <div class="text-sm text-gray-500">設備日誌</div>
+        </div>
+    </div>
+</div>
+
+<!-- 單項匯出 -->
+<div class="bg-white rounded-xl shadow p-6 mb-6">
+    <h2 class="text-lg font-bold text-gray-700 mb-4">📤 單項匯出（CSV）</h2>
+    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+        <a href="/admin/backup/export/users" 
+           class="flex items-center justify-center p-4 border-2 border-blue-200 rounded-lg hover:bg-blue-50 transition">
+            <span class="text-2xl mr-2">👥</span>
+            <span>使用者</span>
+        </a>
+        <a href="/admin/backup/export/patients" 
+           class="flex items-center justify-center p-4 border-2 border-green-200 rounded-lg hover:bg-green-50 transition">
+            <span class="text-2xl mr-2">🏥</span>
+            <span>病人</span>
+        </a>
+        <a href="/admin/backup/export/exams" 
+           class="flex items-center justify-center p-4 border-2 border-purple-200 rounded-lg hover:bg-purple-50 transition">
+            <span class="text-2xl mr-2">🔬</span>
+            <span>檢查項目</span>
+        </a>
+        <a href="/admin/backup/export/equipment" 
+           class="flex items-center justify-center p-4 border-2 border-orange-200 rounded-lg hover:bg-orange-50 transition">
+            <span class="text-2xl mr-2">🖥️</span>
+            <span>設備</span>
+        </a>
+    </div>
+</div>
+
+<!-- 今日病人追蹤匯出 -->
+<div class="bg-white rounded-xl shadow p-6 mb-6">
+    <h2 class="text-lg font-bold text-gray-700 mb-4">📋 追蹤記錄匯出</h2>
+    <form action="/admin/backup/export/tracking" method="GET" class="flex flex-wrap items-end gap-4">
+        <div>
+            <label class="block text-sm text-gray-600 mb-1">檢查日期</label>
+            <input type="date" name="exam_date" value="{{ today }}"
+                   class="border rounded-lg px-3 py-2">
+        </div>
+        <button type="submit" 
+                class="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded-lg">
+            📥 匯出追蹤記錄
+        </button>
+    </form>
+</div>
+
+<!-- 完整備份 -->
+<div class="bg-white rounded-xl shadow p-6">
+    <h2 class="text-lg font-bold text-gray-700 mb-4">💾 完整備份（JSON）</h2>
+    <p class="text-gray-500 text-sm mb-4">
+        匯出所有系統資料（使用者、病人、檢查項目、設備、近 30 天追蹤記錄）為 JSON 格式。
+    </p>
+    <a href="/admin/backup/export/full" 
+       class="inline-block bg-green-500 hover:bg-green-600 text-white px-6 py-3 rounded-lg font-medium">
+        💾 下載完整備份
+    </a>
+    <p class="text-xs text-gray-400 mt-2">
+        ⚠️ 備份檔案包含敏感資料，請妥善保管
+    </p>
+</div>
+
+<!-- 備份說明 -->
+<div class="mt-6 bg-blue-50 rounded-xl p-4">
+    <h3 class="font-bold text-blue-800 mb-2">💡 備份說明</h3>
+    <ul class="text-sm text-blue-700 space-y-1">
+        <li>• Railway PostgreSQL 已自動每日備份，此功能為額外手動備份</li>
+        <li>• CSV 格式可用 Excel 開啟，方便資料查閱</li>
+        <li>• JSON 格式為完整資料結構，可用於系統還原</li>
+        <li>• 建議定期（每週/每月）下載備份檔案保存</li>
+    </ul>
+</div>
+{% endblock %}

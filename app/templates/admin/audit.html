@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+
+{% block title %}操作日誌 - 高檢病人動態系統{% endblock %}
+
+{% block content %}
+<div class="mb-6 flex justify-between items-center">
+    <h1 class="text-2xl font-bold text-gray-800">📜 操作日誌</h1>
+    <a href="/admin" class="text-blue-500 hover:underline">← 返回管理後台</a>
+</div>
+
+<!-- 篩選條件 -->
+<div class="bg-white rounded-xl shadow p-4 mb-6">
+    <form method="GET" class="flex flex-wrap items-end gap-4">
+        <div>
+            <label class="block text-sm text-gray-600 mb-1">開始日期</label>
+            <input type="date" name="start_date" value="{{ start_date }}"
+                   class="border rounded-lg px-3 py-2">
+        </div>
+        <div>
+            <label class="block text-sm text-gray-600 mb-1">結束日期</label>
+            <input type="date" name="end_date" value="{{ end_date }}"
+                   class="border rounded-lg px-3 py-2">
+        </div>
+        <div>
+            <label class="block text-sm text-gray-600 mb-1">操作類型</label>
+            <select name="action" class="border rounded-lg px-3 py-2">
+                <option value="">全部</option>
+                {% for a in all_actions %}
+                <option value="{{ a.value }}" {% if selected_action == a.value %}selected{% endif %}>
+                    {{ a.label }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label class="block text-sm text-gray-600 mb-1">操作者</label>
+            <select name="user_id" class="border rounded-lg px-3 py-2">
+                <option value="">全部</option>
+                {% for u in users %}
+                <option value="{{ u.id }}" {% if selected_user_id == u.id %}selected{% endif %}>
+                    {{ u.display_name }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+        <button type="submit" 
+                class="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded-lg">
+            🔍 查詢
+        </button>
+        <a href="/admin/audit/export?start_date={{ start_date }}&end_date={{ end_date }}&action={{ selected_action or '' }}"
+           class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg text-sm">
+            📥 匯出 CSV
+        </a>
+    </form>
+</div>
+
+<!-- 統計摘要 -->
+<div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+    <div class="bg-white rounded-xl shadow p-4">
+        <div class="text-2xl font-bold text-blue-600">{{ total_count }}</div>
+        <div class="text-sm text-gray-500">總操作數</div>
+    </div>
+    <div class="bg-white rounded-xl shadow p-4">
+        <div class="text-2xl font-bold text-green-600">{{ today_count }}</div>
+        <div class="text-sm text-gray-500">今日操作</div>
+    </div>
+    <div class="bg-white rounded-xl shadow p-4">
+        <div class="text-2xl font-bold text-purple-600">{{ unique_users }}</div>
+        <div class="text-sm text-gray-500">活躍使用者</div>
+    </div>
+    <div class="bg-white rounded-xl shadow p-4">
+        <div class="text-2xl font-bold text-orange-600">{{ logs|length }}</div>
+        <div class="text-sm text-gray-500">顯示筆數</div>
+    </div>
+</div>
+
+<!-- 日誌列表 -->
+<div class="bg-white rounded-xl shadow overflow-hidden">
+    <div class="px-4 py-3 bg-gray-50 border-b">
+        <span class="font-bold text-gray-700">操作記錄</span>
+    </div>
+    
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-4 py-3 text-left">時間</th>
+                    <th class="px-4 py-3 text-left">操作者</th>
+                    <th class="px-4 py-3 text-left">操作類型</th>
+                    <th class="px-4 py-3 text-left">對象</th>
+                    <th class="px-4 py-3 text-left">IP 位址</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y">
+                {% for log in logs %}
+                <tr class="hover:bg-gray-50">
+                    <td class="px-4 py-3">
+                        <div class="font-medium">{{ log.created_at.strftime('%m/%d') }}</div>
+                        <div class="text-xs text-gray-400">{{ log.created_at.strftime('%H:%M:%S') }}</div>
+                    </td>
+                    <td class="px-4 py-3">
+                        {{ log.user_name or '-' }}
+                    </td>
+                    <td class="px-4 py-3">
+                        {% if 'login' in log.action %}
+                        <span class="px-2 py-1 bg-green-100 text-green-700 rounded text-xs">🔐 {{ log.action_label }}</span>
+                        {% elif 'create' in log.action or 'import' in log.action %}
+                        <span class="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs">➕ {{ log.action_label }}</span>
+                        {% elif 'delete' in log.action or 'disable' in log.action %}
+                        <span class="px-2 py-1 bg-red-100 text-red-700 rounded text-xs">🗑️ {{ log.action_label }}</span>
+                        {% elif 'update' in log.action or 'permission' in log.action %}
+                        <span class="px-2 py-1 bg-yellow-100 text-yellow-700 rounded text-xs">✏️ {{ log.action_label }}</span>
+                        {% elif 'assign' in log.action %}
+                        <span class="px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs">📋 {{ log.action_label }}</span>
+                        {% elif 'failure' in log.action %}
+                        <span class="px-2 py-1 bg-red-100 text-red-700 rounded text-xs">🔴 {{ log.action_label }}</span>
+                        {% elif 'repair' in log.action %}
+                        <span class="px-2 py-1 bg-green-100 text-green-700 rounded text-xs">✅ {{ log.action_label }}</span>
+                        {% elif 'export' in log.action or 'backup' in log.action %}
+                        <span class="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs">📥 {{ log.action_label }}</span>
+                        {% else %}
+                        <span class="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs">{{ log.action_label }}</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-3 text-gray-600">
+                        {% if log.target_type %}
+                        <span class="text-xs text-gray-400">[{{ log.target_type }}]</span>
+                        {% endif %}
+                        {{ log.target_name or '-' }}
+                    </td>
+                    <td class="px-4 py-3 text-gray-400 text-xs font-mono">
+                        {{ log.ip_address or '-' }}
+                    </td>
+                </tr>
+                {% endfor %}
+                
+                {% if not logs %}
+                <tr>
+                    <td colspan="5" class="px-4 py-12 text-center text-gray-400">
+                        查無資料
+                    </td>
+                </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+    
+    <!-- 分頁提示 -->
+    {% if logs|length >= 100 %}
+    <div class="px-4 py-3 bg-gray-50 border-t text-center text-sm text-gray-500">
+        顯示前 100 筆記錄，請使用篩選條件縮小範圍
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
