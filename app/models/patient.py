@@ -9,40 +9,31 @@ from ..database import Base
 
 
 class Patient(Base):
+    """病人"""
     __tablename__ = "patients"
     
     id = Column(Integer, primary_key=True, index=True)
-    chart_no = Column(String(50), nullable=False, index=True)  # 病歷號
-    name = Column(String(100), nullable=False)  # 姓名
+    chart_no = Column(String(20), nullable=False, index=True)  # 病歷號
+    name = Column(String(100), nullable=False)
     
-    # 套餐/檢查項目（逗號分隔，如 "CT,MRI,US,XRAY"）
-    package_code = Column(String(500), nullable=True)
+    # 基本資料
+    gender = Column(String(10), nullable=True)
+    birthday = Column(String(20), nullable=True)
+    phone = Column(String(20), nullable=True)
     
-    # 檢查日期
+    # 檢查相關
     exam_date = Column(Date, nullable=False, index=True)
+    exam_list = Column(Text, nullable=True)  # 檢查項目，逗號分隔
     
-    # 狀態
-    is_active = Column(Boolean, default=True)  # 當日是否啟用
-    is_completed = Column(Boolean, default=False)  # 是否全部完成
+    # VIP 等級
+    vip_level = Column(Integer, default=0)
     
     # 備註
     notes = Column(Text, nullable=True)
     
-    # 時間戳記
+    is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     def __repr__(self):
-        return f"<Patient {self.chart_no} {self.name}>"
-    
-    @property
-    def exam_list(self) -> list:
-        """取得檢查項目清單"""
-        if not self.package_code:
-            return []
-        return [code.strip() for code in self.package_code.split(",") if code.strip()]
-    
-    @property
-    def exam_count(self) -> int:
-        """檢查項目數量"""
-        return len(self.exam_list)
+        return f"<Patient {self.chart_no}: {self.name}>"
