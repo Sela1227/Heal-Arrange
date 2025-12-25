@@ -35,11 +35,7 @@ class Exam(Base):
     duration_minutes = Column("duration_min", Integer, default=15)
     
     location = Column(String(100), nullable=True)
-    description = Column(String(255), nullable=True)
-    
     is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     def __repr__(self):
         return f"<Exam {self.exam_code}: {self.name}>"
