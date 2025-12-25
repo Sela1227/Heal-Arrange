@@ -31,17 +31,11 @@ async def admin_index(
 ):
     """管理後台首頁"""
     user_count = db.query(User).count()
+    # 用 role 欄位判斷待審核（避免 JSON 比較問題）
     pending_count = db.query(User).filter(
         User.is_active == True,
-        User.permissions == []  # JSON 空陣列
+        User.role == 'pending'
     ).count()
-    
-    # 也檢查 permissions 為 null 的情況
-    pending_null = db.query(User).filter(
-        User.is_active == True,
-        User.permissions.is_(None)
-    ).count()
-    pending_count += pending_null
     
     today = date.today()
     patient_count = db.query(Patient).filter(Patient.exam_date == today).count()
