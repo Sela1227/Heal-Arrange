@@ -72,15 +72,14 @@ def export_exams_csv(db: Session) -> str:
     
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(['ID', '代碼', '名稱', '時間(分)', '位置', '是否啟用'])
+    writer.writerow(['ID', '代碼', '名稱', '時間(分)', '是否啟用'])
     
     for e in exams:
         writer.writerow([
             e.id,
             e.exam_code,
             e.name,
-            e.duration_minutes,
-            e.location or '',
+            e.duration_min,
             '是' if e.is_active else '否',
         ])
     
@@ -188,8 +187,7 @@ def export_all_data_json(db: Session) -> str:
             "id": e.id,
             "exam_code": e.exam_code,
             "name": e.name,
-            "duration_minutes": e.duration_minutes,
-            "location": e.location,
+            "duration_min": e.duration_min,
             "is_active": e.is_active,
         })
     

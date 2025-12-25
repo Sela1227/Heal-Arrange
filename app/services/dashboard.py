@@ -162,7 +162,7 @@ def get_station_performance(db: Session, target_date: date = None) -> List[Dict]
         ).count()
         
         # 計算平均處理時間
-        avg_time = exam.duration_minutes  # 預設
+        avg_time = exam.duration_min  # 預設
         
         # 設備狀態
         equipment = db.query(Equipment).filter(

@@ -376,8 +376,7 @@ async def add_exam(
     request: Request,
     exam_code: str = Form(...),
     name: str = Form(...),
-    duration_minutes: int = Form(15),
-    location: str = Form(""),
+    duration_min: int = Form(15),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
@@ -385,14 +384,12 @@ async def add_exam(
     existing = db.query(Exam).filter(Exam.exam_code == exam_code).first()
     if existing:
         existing.name = name
-        existing.duration_minutes = duration_minutes
-        existing.location = location
+        existing.duration_min = duration_min
     else:
         exam = Exam(
             exam_code=exam_code,
             name=name,
-            duration_minutes=duration_minutes,
-            location=location,
+            duration_min=duration_min,
         )
         db.add(exam)
     

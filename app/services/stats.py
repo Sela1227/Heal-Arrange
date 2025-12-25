@@ -123,7 +123,7 @@ def get_station_statistics(db: Session, target_date: date = None) -> List[Dict]:
             "waiting": waiting_count,
             "in_exam": in_exam_count,
             "equipment_status": equipment_status,
-            "duration_minutes": exam.duration_minutes,
+            "duration_minutes": exam.duration_min,
         })
     
     return stats

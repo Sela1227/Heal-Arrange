@@ -52,7 +52,7 @@ def get_exam_average_duration(db: Session, exam_code: str, days: int = 7) -> int
     
     # 沒有歷史資料，返回預設時間
     exam = db.query(Exam).filter(Exam.exam_code == exam_code).first()
-    return exam.duration_minutes if exam else 15
+    return exam.duration_min if exam else 15
 
 
 def estimate_wait_time(
