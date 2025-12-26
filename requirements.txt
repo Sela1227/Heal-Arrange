@@ -2,8 +2,11 @@
 fastapi==0.109.0
 uvicorn[standard]==0.27.0
 python-multipart==0.0.6
+
+# 認證相關
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
+PyJWT==2.8.0
 
 # 資料庫
 sqlalchemy==2.0.25
@@ -20,6 +23,10 @@ httpx==0.26.0
 # 工具
 python-dotenv==1.0.0
 
+# Pydantic 設定
+pydantic==2.5.3
+pydantic-settings==2.1.0
+
 # PDF 報表生成
 reportlab==4.0.8
 
@@ -27,5 +34,6 @@ reportlab==4.0.8
 qrcode[pil]==7.4.2
 pillow==10.2.0
 
-#FDF 環境變數
-pydantic-settings==2.1.0
+# Session 管理
+itsdangerous==2.1.2
+starlette-session==0.4.3
