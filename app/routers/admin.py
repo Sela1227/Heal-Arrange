@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-管理後台路由 - 包含系統設定
+管理後台路由 - Phase 7 更新：加入排程建議、容量設定
 """
 
 from datetime import date
@@ -16,8 +16,7 @@ from ..models.user import User, UserRole
 from ..models.patient import Patient
 from ..models.exam import Exam, DEFAULT_EXAMS
 from ..models.equipment import Equipment, EquipmentLog, EquipmentStatus
-from ..services.auth import get_current_user
-from ..services import settings as settings_service
+from ..services.auth import get_current_user, require_role
 
 router = APIRouter(prefix="/admin", tags=["管理後台"])
 templates = Jinja2Templates(directory="app/templates")
@@ -64,53 +63,6 @@ async def admin_index(
 
 
 # ======================
-# 系統設定
-# ======================
-
-@router.get("/settings", response_class=HTMLResponse)
-async def admin_settings(
-    request: Request,
-    saved: int = 0,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_admin),
-):
-    """系統設定頁面"""
-    all_settings = settings_service.get_all_settings(db)
-    default_role = settings_service.get_default_user_role(db)
-    
-    return templates.TemplateResponse("admin/settings.html", {
-        "request": request,
-        "user": current_user,
-        "settings": all_settings,
-        "default_role": default_role,
-        "saved": saved,
-        "roles": [
-            {"value": "pending", "label": "待審核"},
-            {"value": "coordinator", "label": "專員"},
-            {"value": "dispatcher", "label": "調度員"},
-            {"value": "leader", "label": "組長"},
-        ],
-    })
-
-
-@router.post("/settings/default-role")
-async def update_default_role(
-    request: Request,
-    default_role: str = Form(...),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_admin),
-):
-    """更新新用戶預設角色"""
-    valid_roles = ["pending", "coordinator", "dispatcher", "leader"]
-    if default_role not in valid_roles:
-        raise HTTPException(status_code=400, detail="無效的角色")
-    
-    settings_service.set_setting(db, "default_user_role", default_role, current_user.id)
-    
-    return RedirectResponse(url="/admin/settings?saved=1", status_code=302)
-
-
-# ======================
 # 帳號管理
 # ======================
 
@@ -122,14 +74,12 @@ async def admin_users(
 ):
     """帳號管理頁面"""
     users = db.query(User).order_by(User.created_at.desc()).all()
-    default_role = settings_service.get_default_user_role(db)
     
     return templates.TemplateResponse("admin/users.html", {
         "request": request,
         "user": current_user,
         "users": users,
         "roles": [r.value for r in UserRole],
-        "default_role": default_role,
     })
 
 
@@ -178,7 +128,7 @@ async def toggle_user_active(
 
 
 # ======================
-# 病人管理
+# 病人匯入
 # ======================
 
 @router.get("/patients", response_class=HTMLResponse)
@@ -335,10 +285,16 @@ async def admin_exams(
     """檢查項目管理頁面"""
     exams = db.query(Exam).order_by(Exam.exam_code).all()
     
+    # 取得容量狀態
+    from ..services.scheduler import get_capacity_status
+    capacity_list = get_capacity_status(db)
+    capacity_status = {c['exam_code']: c for c in capacity_list}
+    
     return templates.TemplateResponse("admin/exams.html", {
         "request": request,
         "user": current_user,
         "exams": exams,
+        "capacity_status": capacity_status,
     })
 
 
@@ -355,6 +311,10 @@ async def init_exams(
             exam = Exam(**exam_data)
             db.add(exam)
             count += 1
+        else:
+            # 更新容量
+            if 'capacity' in exam_data:
+                existing.capacity = exam_data['capacity']
     
     db.commit()
     return RedirectResponse(url="/admin/exams", status_code=302)
@@ -366,6 +326,7 @@ async def add_exam(
     exam_code: str = Form(...),
     name: str = Form(...),
     duration_minutes: int = Form(15),
+    capacity: int = Form(5),
     location: str = Form(""),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
@@ -374,24 +335,35 @@ async def add_exam(
     existing = db.query(Exam).filter(Exam.exam_code == exam_code).first()
     if existing:
         existing.name = name
-        if hasattr(existing, 'duration_min'):
-            existing.duration_min = duration_minutes
-        if hasattr(existing, 'duration_minutes'):
-            existing.duration_minutes = duration_minutes
+        existing.duration_minutes = duration_minutes
+        existing.capacity = capacity
         existing.location = location
     else:
         exam = Exam(
             exam_code=exam_code,
             name=name,
+            duration_minutes=duration_minutes,
+            capacity=capacity,
             location=location,
         )
-        if hasattr(exam, 'duration_min'):
-            exam.duration_min = duration_minutes
-        if hasattr(exam, 'duration_minutes'):
-            exam.duration_minutes = duration_minutes
         db.add(exam)
     
     db.commit()
+    return RedirectResponse(url="/admin/exams", status_code=302)
+
+
+@router.post("/exams/{exam_id}/capacity")
+async def update_exam_capacity(
+    exam_id: int,
+    capacity: int = Form(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """更新檢查站容量"""
+    exam = db.query(Exam).filter(Exam.id == exam_id).first()
+    if exam:
+        exam.capacity = max(1, min(20, capacity))  # 限制 1-20
+        db.commit()
     return RedirectResponse(url="/admin/exams", status_code=302)
 
 
@@ -438,7 +410,7 @@ async def init_equipment(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
-    """初始化設備"""
+    """初始化設備（依檢查站建立）"""
     exams = db.query(Exam).filter(Exam.is_active == True).all()
     count = 0
     
@@ -520,89 +492,112 @@ async def delete_equipment(
 
 
 # ======================
-# 角色模擬功能
+# 排程建議（Phase 7 新增）
 # ======================
 
-@router.get("/impersonate", response_class=HTMLResponse)
-async def admin_impersonate(
+@router.get("/scheduler", response_class=HTMLResponse)
+async def scheduler_page(
     request: Request,
+    patient_id: int = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
-    """角色模擬選擇頁面"""
-    from ..services import impersonate as impersonate_service
+    """排程建議頁面"""
+    from ..services.scheduler import (
+        optimize_daily_schedule,
+        get_capacity_status,
+        suggest_next_station,
+        detect_schedule_conflicts,
+    )
     
-    dispatchers = impersonate_service.get_impersonatable_users(db, "dispatcher")
-    coordinators = impersonate_service.get_impersonatable_users(db, "coordinator")
-    leaders = impersonate_service.get_impersonatable_users(db, "leader")
-    patients = impersonate_service.get_impersonatable_patients(db)
+    today = date.today()
     
-    status = impersonate_service.get_impersonation_status(request)
+    # 取得整體優化建議
+    optimization = optimize_daily_schedule(db, today)
     
-    return templates.TemplateResponse("admin/impersonate.html", {
+    # 取得容量狀態
+    capacity_status = get_capacity_status(db, today)
+    
+    # 取得所有病人
+    patients = db.query(Patient).filter(
+        Patient.exam_date == today,
+        Patient.is_active == True,
+    ).all()
+    
+    # 如果選擇了特定病人
+    selected_patient = None
+    suggestions = []
+    conflicts = []
+    
+    if patient_id:
+        selected_patient = db.query(Patient).filter(Patient.id == patient_id).first()
+        if selected_patient:
+            suggestions = suggest_next_station(db, patient_id, today)
+            conflicts = detect_schedule_conflicts(db, patient_id, today)
+    
+    return templates.TemplateResponse("admin/scheduler.html", {
         "request": request,
         "user": current_user,
-        "dispatchers": dispatchers,
-        "coordinators": coordinators,
-        "leaders": leaders,
+        "optimization": optimization,
+        "capacity_status": capacity_status,
         "patients": patients,
-        "impersonate_status": status,
-        "today": date.today(),
+        "selected_patient": selected_patient,
+        "suggestions": suggestions,
+        "conflicts": conflicts,
     })
 
 
-@router.post("/impersonate/start")
-async def start_impersonate(
+# ======================
+# HTMX API
+# ======================
+
+@router.get("/exams/api/capacity", response_class=HTMLResponse)
+async def get_capacity_partial(
     request: Request,
-    role: str = Form(...),
-    user_id: int = Form(None),
-    patient_id: int = Form(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
-    """開始角色模擬"""
-    from ..services import impersonate as impersonate_service
+    """容量狀態（HTMX 部分更新）"""
+    from ..services.scheduler import get_capacity_status
     
-    result = impersonate_service.start_impersonation(
-        request=request,
-        admin_id=current_user.id,
-        target_role=role,
-        target_user_id=user_id,
-        target_patient_id=patient_id,
-    )
+    exams = db.query(Exam).filter(Exam.is_active == True).all()
+    capacity_list = get_capacity_status(db)
+    capacity_status = {c['exam_code']: c for c in capacity_list}
     
-    if not result["success"]:
-        return RedirectResponse(
-            url=f"/admin/impersonate?error={result['error']}",
-            status_code=302
-        )
+    # 回傳容量卡片 HTML
+    html_parts = []
+    for exam in exams:
+        if exam.is_active:
+            status = capacity_status.get(exam.exam_code, {})
+            utilization = status.get('utilization', 0)
+            current_count = status.get('current_count', 0)
+            capacity = exam.capacity or 5
+            
+            if utilization >= 100:
+                border_class = "border-red-300 bg-red-50"
+                text_class = "text-red-600"
+                bar_class = "bg-red-500"
+            elif utilization >= 70:
+                border_class = "border-yellow-300 bg-yellow-50"
+                text_class = "text-yellow-600"
+                bar_class = "bg-yellow-500"
+            else:
+                border_class = "border-gray-200"
+                text_class = "text-green-600"
+                bar_class = "bg-green-500"
+            
+            html_parts.append(f'''
+            <div class="border rounded-lg p-3 {border_class}">
+                <div class="font-medium text-sm">{exam.exam_code}</div>
+                <div class="text-xs text-gray-500">{exam.name}</div>
+                <div class="mt-2 flex justify-between items-center">
+                    <span class="text-lg font-bold">{current_count}/{capacity}</span>
+                    <span class="text-xs {text_class}">{utilization}%</span>
+                </div>
+                <div class="mt-1 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                    <div class="h-full rounded-full {bar_class}" style="width: {min(utilization, 100)}%"></div>
+                </div>
+            </div>
+            ''')
     
-    response = RedirectResponse(url=result["redirect_url"], status_code=302)
-    impersonate_service.set_impersonate_cookie(response, result["token"])
-    
-    return response
-
-
-@router.post("/impersonate/end")
-async def end_impersonate(
-    request: Request,
-    db: Session = Depends(get_db),
-):
-    """結束角色模擬"""
-    from ..services import impersonate as impersonate_service
-    
-    response = RedirectResponse(url="/admin", status_code=302)
-    impersonate_service.clear_impersonate_cookie(response)
-    
-    return response
-
-
-@router.get("/impersonate/status")
-async def get_impersonate_status_api(
-    request: Request,
-    db: Session = Depends(get_db),
-):
-    """取得模擬狀態 (API)"""
-    from ..services import impersonate as impersonate_service
-    
-    return impersonate_service.get_impersonation_status(request)
+    return HTMLResponse(content=''.join(html_parts))

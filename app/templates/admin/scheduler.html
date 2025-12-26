@@ -1,0 +1,188 @@
+{% extends "base.html" %}
+
+{% block title %}排程建議 - 高檢病人動態系統{% endblock %}
+
+{% block content %}
+<div class="mb-6 flex justify-between items-center">
+    <h1 class="text-2xl font-bold text-gray-800">🧠 智慧排程建議</h1>
+    <a href="/admin" class="text-blue-500 hover:underline">← 返回管理後台</a>
+</div>
+
+<!-- 整體狀態摘要 -->
+<div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+    <div class="bg-white rounded-xl shadow p-4">
+        <div class="text-3xl font-bold text-blue-600">{{ optimization.total_patients }}</div>
+        <div class="text-sm text-gray-500">今日總病人</div>
+    </div>
+    <div class="bg-white rounded-xl shadow p-4">
+        <div class="text-3xl font-bold text-purple-600">{{ optimization.estimated_completion_time }}</div>
+        <div class="text-sm text-gray-500">預估完成時間</div>
+    </div>
+    <div class="bg-white rounded-xl shadow p-4">
+        <div class="text-3xl font-bold {% if optimization.bottlenecks|length > 0 %}text-red-600{% else %}text-green-600{% endif %}">
+            {{ optimization.bottlenecks|length }}
+        </div>
+        <div class="text-sm text-gray-500">瓶頸站點</div>
+    </div>
+    <div class="bg-white rounded-xl shadow p-4">
+        <div class="text-3xl font-bold text-green-600">
+            {{ capacity_status|selectattr('status', 'equalto', 'normal')|list|length }}
+        </div>
+        <div class="text-sm text-gray-500">正常運作站點</div>
+    </div>
+</div>
+
+<!-- 瓶頸警示 -->
+{% if optimization.bottlenecks %}
+<div class="bg-red-50 border border-red-200 rounded-xl p-4 mb-6">
+    <h3 class="font-bold text-red-800 mb-3">⚠️ 瓶頸站點警示</h3>
+    <div class="space-y-3">
+        {% for bottleneck in optimization.bottlenecks %}
+        <div class="bg-white rounded-lg p-3 border border-red-100">
+            <div class="flex justify-between items-start">
+                <div>
+                    <span class="font-bold text-red-700">{{ bottleneck.exam_name }}</span>
+                    <span class="text-gray-500">({{ bottleneck.exam_code }})</span>
+                </div>
+                <span class="px-2 py-1 rounded text-xs {% if bottleneck.severity == 'high' %}bg-red-100 text-red-700{% else %}bg-yellow-100 text-yellow-700{% endif %}">
+                    {% if bottleneck.severity == 'high' %}嚴重{% else %}中等{% endif %}
+                </span>
+            </div>
+            <div class="mt-2 text-sm text-gray-600">
+                <span>剩餘 {{ bottleneck.remaining }} 人</span>
+                <span class="mx-2">•</span>
+                <span>預估需 {{ bottleneck.estimated_minutes }} 分鐘</span>
+            </div>
+            <div class="mt-1 text-sm text-blue-600">
+                💡 {{ bottleneck.suggestion }}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<!-- 容量狀態 -->
+<div class="bg-white rounded-xl shadow p-4 mb-6">
+    <h3 class="font-bold text-gray-700 mb-4">📊 各站容量狀態</h3>
+    <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
+        {% for station in capacity_status %}
+        <div class="border rounded-lg p-3 {% if station.status == 'full' %}border-red-300 bg-red-50{% elif station.status == 'busy' %}border-yellow-300 bg-yellow-50{% else %}border-green-300 bg-green-50{% endif %}">
+            <div class="flex justify-between items-start">
+                <div>
+                    <div class="font-bold">{{ station.exam_code }}</div>
+                    <div class="text-xs text-gray-500">{{ station.exam_name }}</div>
+                </div>
+                <span class="text-lg">
+                    {% if station.status == 'full' %}🔴
+                    {% elif station.status == 'busy' %}🟡
+                    {% else %}🟢{% endif %}
+                </span>
+            </div>
+            <div class="mt-2 grid grid-cols-2 gap-1 text-xs">
+                <div class="text-gray-500">等候中</div>
+                <div class="text-right font-medium">{{ station.waiting }}</div>
+                <div class="text-gray-500">檢查中</div>
+                <div class="text-right font-medium">{{ station.in_exam }}</div>
+                <div class="text-gray-500">容量</div>
+                <div class="text-right font-medium">{{ station.capacity }}</div>
+            </div>
+            <!-- 進度條 -->
+            <div class="mt-2 h-2 bg-gray-200 rounded-full overflow-hidden">
+                <div class="h-full rounded-full transition-all {% if station.status == 'full' %}bg-red-500{% elif station.status == 'busy' %}bg-yellow-500{% else %}bg-green-500{% endif %}"
+                     style="width: {{ [station.utilization, 100]|min }}%"></div>
+            </div>
+            <div class="text-right text-xs mt-1 {% if station.status == 'full' %}text-red-600{% elif station.status == 'busy' %}text-yellow-600{% else %}text-green-600{% endif %}">
+                {{ station.utilization }}%
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- 病人排程建議（如果有選擇病人） -->
+{% if selected_patient %}
+<div class="bg-white rounded-xl shadow p-4 mb-6">
+    <h3 class="font-bold text-gray-700 mb-4">
+        🎯 {{ selected_patient.name }} 的下一站建議
+    </h3>
+    
+    <!-- 衝突警示 -->
+    {% if conflicts %}
+    <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
+        <div class="font-bold text-yellow-800 mb-2">⚠️ 排程注意事項</div>
+        {% for conflict in conflicts %}
+        <div class="text-sm {% if conflict.severity == 'error' %}text-red-600{% else %}text-yellow-700{% endif %}">
+            • {{ conflict.message }}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+    
+    <!-- 建議列表 -->
+    <div class="space-y-2">
+        {% for suggestion in suggestions %}
+        <div class="flex items-center justify-between p-3 rounded-lg border {% if loop.first %}border-green-300 bg-green-50{% else %}border-gray-200{% endif %}">
+            <div class="flex items-center space-x-3">
+                <div class="text-2xl">
+                    {% if loop.first %}🥇{% elif loop.index == 2 %}🥈{% elif loop.index == 3 %}🥉{% else %}{{ loop.index }}{% endif %}
+                </div>
+                <div>
+                    <div class="font-bold">{{ suggestion.exam_name }}</div>
+                    <div class="text-sm text-gray-500">
+                        {{ suggestion.exam_code }} • {{ suggestion.duration_minutes }}分鐘 
+                        • 等候{{ suggestion.waiting_count }}人
+                    </div>
+                </div>
+            </div>
+            <div class="text-right">
+                <div class="text-lg font-bold {% if suggestion.score >= 80 %}text-green-600{% elif suggestion.score >= 50 %}text-yellow-600{% else %}text-red-600{% endif %}">
+                    {{ suggestion.score }}分
+                </div>
+                <div class="text-xs text-gray-500 max-w-48">{{ suggestion.reason }}</div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<!-- 選擇病人 -->
+<div class="bg-white rounded-xl shadow p-4">
+    <h3 class="font-bold text-gray-700 mb-4">🔍 查詢病人排程建議</h3>
+    <form method="GET" class="flex items-end space-x-4">
+        <div>
+            <label class="block text-sm text-gray-600 mb-1">選擇病人</label>
+            <select name="patient_id" class="border rounded-lg px-3 py-2 w-64">
+                <option value="">-- 選擇病人 --</option>
+                {% for patient in patients %}
+                <option value="{{ patient.id }}" {% if selected_patient and selected_patient.id == patient.id %}selected{% endif %}>
+                    {{ patient.chart_no }} - {{ patient.name }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+        <button type="submit" class="bg-purple-500 hover:bg-purple-600 text-white px-6 py-2 rounded-lg">
+            🧠 取得建議
+        </button>
+    </form>
+</div>
+
+<!-- 說明 -->
+<div class="mt-6 bg-blue-50 rounded-xl p-4 text-sm text-blue-800">
+    <h4 class="font-bold mb-2">💡 排程建議說明</h4>
+    <ul class="list-disc list-inside space-y-1">
+        <li><strong>分數計算</strong>：根據等候人數、依賴關係、設備狀態、時間因素綜合計算</li>
+        <li><strong>依賴關係</strong>：如內視鏡應在抽血後、諮詢應在所有檢查後</li>
+        <li><strong>瓶頸分析</strong>：預測哪些站點可能造成延遲</li>
+        <li><strong>建議更新</strong>：頁面每 30 秒自動更新數據</li>
+    </ul>
+</div>
+
+<script>
+// 每 30 秒重新載入頁面
+setTimeout(() => {
+    location.reload();
+}, 30000);
+</script>
+{% endblock %}

@@ -1,59 +1,66 @@
-<!-- 檢查站卡片（含等候時間） -->
-<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+<!-- 檢查站狀態卡片 - Phase 7 更新：加入容量指示 -->
+<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
     {% for exam_code, station in station_summary.items() %}
-    <div class="bg-white rounded-xl shadow p-4 {% if exam_code in broken_locations %}border-2 border-red-300{% endif %}">
+    {% set is_broken = exam_code in broken_locations if broken_locations else False %}
+    {% set capacity = station.exam.capacity or 5 %}
+    {% set utilization = ((station.total / capacity) * 100)|int if capacity > 0 else 0 %}
+    
+    <div class="bg-white rounded-lg shadow p-3 {% if is_broken %}border-2 border-red-400{% elif utilization >= 100 %}border-2 border-red-300{% elif utilization >= 70 %}border-2 border-yellow-300{% endif %}">
         <div class="flex justify-between items-start mb-2">
-            <h4 class="font-bold text-gray-800">{{ station.exam.name }}</h4>
-            <span class="text-xs text-gray-400">{{ exam_code }}</span>
-        </div>
-        
-        <div class="space-y-2">
-            <!-- 等候人數 -->
-            <div class="flex justify-between text-sm">
-                <span class="text-gray-500">⏳ 等候中</span>
-                <span class="font-medium {% if station.waiting > 3 %}text-orange-500{% else %}text-gray-700{% endif %}">
-                    {{ station.waiting }} 人
-                </span>
+            <div>
+                <div class="font-bold text-sm">{{ station.exam.name }}</div>
+                <div class="text-xs text-gray-500">{{ exam_code }}</div>
             </div>
-            
-            <!-- 檢查中 -->
-            <div class="flex justify-between text-sm">
-                <span class="text-gray-500">🔬 檢查中</span>
-                <span class="font-medium text-blue-600">
-                    {{ station.in_exam }} 人
-                </span>
-            </div>
-            
-            <!-- 預估等候時間 -->
-            {% if station.estimated_wait is defined %}
-            <div class="pt-2 border-t">
-                <div class="text-center">
-                    <span class="text-xs text-gray-400">預估等候</span>
-                    <p class="font-bold {% if station.estimated_wait > 30 %}text-red-500{% elif station.estimated_wait > 15 %}text-orange-500{% else %}text-green-500{% endif %}">
-                        {% if station.estimated_wait <= 0 %}
-                        無需等候
-                        {% elif station.estimated_wait < 60 %}
-                        約 {{ station.estimated_wait }} 分
-                        {% else %}
-                        約 {{ station.estimated_wait // 60 }}h{{ station.estimated_wait % 60 }}m
-                        {% endif %}
-                    </p>
-                </div>
-            </div>
+            {% if is_broken %}
+            <span class="text-lg" title="設備故障">🔴</span>
+            {% elif utilization >= 100 %}
+            <span class="text-lg" title="已滿載">🔴</span>
+            {% elif utilization >= 70 %}
+            <span class="text-lg" title="接近滿載">🟡</span>
+            {% else %}
+            <span class="text-lg" title="正常">🟢</span>
             {% endif %}
         </div>
         
-        {% if exam_code in broken_locations %}
-        <div class="mt-2 text-xs text-red-500 text-center">
-            🔴 設備故障
+        <!-- 人數統計 -->
+        <div class="grid grid-cols-2 gap-1 text-xs mb-2">
+            <div class="flex items-center">
+                <span class="text-yellow-500 mr-1">⏳</span>
+                <span>等候 {{ station.waiting }}</span>
+            </div>
+            <div class="flex items-center">
+                <span class="text-blue-500 mr-1">🔬</span>
+                <span>檢查 {{ station.in_exam }}</span>
+            </div>
+        </div>
+        
+        <!-- 容量進度條 -->
+        <div class="mt-2">
+            <div class="flex justify-between text-xs text-gray-500 mb-1">
+                <span>容量</span>
+                <span>{{ station.total }}/{{ capacity }}</span>
+            </div>
+            <div class="h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                <div class="h-full rounded-full transition-all
+                    {% if utilization >= 100 %}bg-red-500
+                    {% elif utilization >= 70 %}bg-yellow-500
+                    {% else %}bg-green-500{% endif %}"
+                     style="width: {{ [utilization, 100]|min }}%"></div>
+            </div>
+        </div>
+        
+        <!-- 等候時間預估 -->
+        {% if station.total > 0 %}
+        <div class="mt-2 text-xs text-gray-500 text-center">
+            ⏱️ 約 {{ station.waiting * station.exam.duration_minutes + (station.in_exam * station.exam.duration_minutes // 2) }} 分鐘
+        </div>
+        {% endif %}
+        
+        {% if is_broken %}
+        <div class="mt-2 text-xs text-red-600 text-center font-medium">
+            ⚠️ 設備故障中
         </div>
         {% endif %}
     </div>
     {% endfor %}
 </div>
-
-{% if not station_summary %}
-<div class="text-center text-gray-400 py-8">
-    尚無檢查站資料
-</div>
-{% endif %}

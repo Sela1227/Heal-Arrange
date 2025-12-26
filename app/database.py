@@ -1,28 +1,22 @@
 # -*- coding: utf-8 -*-
 """
-高檢病人動態系統 - 資料庫連線
+資料庫連線與初始化 - Phase 7 更新：自動遷移
 """
 
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, declarative_base
+from sqlalchemy import create_engine, text
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
+
 from .config import settings
 
-# 建立引擎
-engine = create_engine(
-    settings.DATABASE_URL,
-    pool_pre_ping=True,
-    pool_recycle=300,
-)
-
-# Session 工廠
+engine = create_engine(settings.DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-# 基礎模型類別
 Base = declarative_base()
 
 
 def get_db():
-    """取得資料庫 Session（用於 FastAPI Depends）"""
+    """取得資料庫 session"""
     db = SessionLocal()
     try:
         yield db
@@ -30,10 +24,41 @@ def get_db():
         db.close()
 
 
+def run_migrations():
+    """執行資料庫遷移"""
+    with engine.connect() as conn:
+        # Phase 7: 新增 capacity 欄位
+        try:
+            # 檢查欄位是否存在
+            result = conn.execute(text("""
+                SELECT column_name 
+                FROM information_schema.columns 
+                WHERE table_name = 'exams' AND column_name = 'capacity'
+            """))
+            
+            if result.fetchone() is None:
+                # 欄位不存在，新增它
+                conn.execute(text("""
+                    ALTER TABLE exams ADD COLUMN capacity INTEGER DEFAULT 5 NOT NULL
+                """))
+                conn.commit()
+                print("✅ 已新增 exams.capacity 欄位")
+            else:
+                print("✅ exams.capacity 欄位已存在")
+                
+        except Exception as e:
+            print(f"⚠️ 遷移檢查: {e}")
+
+
 def init_db():
-    """初始化資料庫（建立所有資料表）"""
-    # 匯入所有模型以確保它們被註冊
+    """初始化資料庫"""
+    # 導入所有 models 以便建立表格
     from .models import user, patient, exam, tracking, equipment
     
+    # 建立表格（如果不存在）
     Base.metadata.create_all(bind=engine)
+    
+    # 執行遷移
+    run_migrations()
+    
     print("✅ 資料庫初始化完成")

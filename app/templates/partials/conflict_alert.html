@@ -1,0 +1,19 @@
+<!-- 衝突提醒 partial -->
+{% if conflicts %}
+<div class="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-3">
+    <div class="font-bold text-yellow-800 text-sm mb-2">⚠️ 排程提醒</div>
+    {% for conflict in conflicts %}
+    <div class="text-xs {% if conflict.severity == 'error' %}text-red-600{% else %}text-yellow-700{% endif %} mb-1">
+        {% if conflict.type == 'capacity' %}
+        🔴 {{ conflict.message }}
+        {% elif conflict.type == 'equipment' %}
+        🛠️ {{ conflict.message }}
+        {% elif conflict.type == 'dependency' %}
+        📋 {{ conflict.message }}
+        {% else %}
+        • {{ conflict.message }}
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+{% endif %}

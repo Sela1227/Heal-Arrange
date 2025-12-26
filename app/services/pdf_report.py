@@ -3,183 +3,344 @@
 PDF 報表服務 - 使用 reportlab 產生 PDF 報表
 """
 
+import io
 from datetime import date, datetime
 from typing import List, Dict
-from io import BytesIO
-from sqlalchemy.orm import Session
-
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.units import cm, mm
+from reportlab.lib.units import mm
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
+from sqlalchemy.orm import Session
 
-from ..models.patient import Patient
-from ..models.user import User
-from ..models.tracking import PatientTracking, CoordinatorAssignment, TrackingStatus
+from .stats import get_daily_summary, get_station_statistics, get_coordinator_statistics
 
 
+# 嘗試註冊中文字體（如果有的話）
 def register_chinese_font():
-    """註冊中文字型"""
+    """註冊中文字體"""
     font_paths = [
         '/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc',
         '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc',
-        '/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc',
-        '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+        '/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc',
+        '/System/Library/Fonts/PingFang.ttc',
+        'C:/Windows/Fonts/msjh.ttc',
     ]
     
-    for font_path in font_paths:
+    for path in font_paths:
         try:
-            import os
-            if os.path.exists(font_path):
-                pdfmetrics.registerFont(TTFont('Chinese', font_path))
-                return 'Chinese'
-        except Exception:
+            pdfmetrics.registerFont(TTFont('Chinese', path))
+            return 'Chinese'
+        except:
             continue
+    
+    # 如果沒有中文字體，使用 Helvetica
     return 'Helvetica'
 
 
-CHINESE_FONT = register_chinese_font()
+FONT_NAME = register_chinese_font()
 
 
-def create_daily_report_pdf(
-    db: Session,
-    target_date: date,
-    summary: Dict,
-    station_stats: List[Dict],
-    coordinator_stats: List[Dict]
-) -> bytes:
-    """產生每日報表 PDF"""
-    buffer = BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=1.5*cm, leftMargin=1.5*cm, topMargin=1.5*cm, bottomMargin=1.5*cm)
+def generate_daily_report_pdf(db: Session, target_date: date = None) -> bytes:
+    """
+    產生每日報表 PDF
     
+    Returns:
+        PDF 檔案的 bytes
+    """
+    if target_date is None:
+        target_date = date.today()
+    
+    # 取得數據
+    summary = get_daily_summary(db, target_date)
+    station_stats = get_station_statistics(db, target_date)
+    coordinator_stats = get_coordinator_statistics(db, target_date)
+    
+    # 建立 PDF
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        rightMargin=20*mm,
+        leftMargin=20*mm,
+        topMargin=20*mm,
+        bottomMargin=20*mm,
+    )
+    
+    elements = []
     styles = getSampleStyleSheet()
-    title_style = ParagraphStyle('Title', parent=styles['Heading1'], fontName=CHINESE_FONT, fontSize=18, alignment=1, spaceAfter=12)
-    subtitle_style = ParagraphStyle('Subtitle', parent=styles['Heading2'], fontName=CHINESE_FONT, fontSize=14, spaceBefore=12, spaceAfter=6)
-    normal_style = ParagraphStyle('Normal', parent=styles['Normal'], fontName=CHINESE_FONT, fontSize=10)
-    small_style = ParagraphStyle('Small', parent=styles['Normal'], fontName=CHINESE_FONT, fontSize=8, textColor=colors.grey)
     
-    content = []
+    # 標題樣式
+    title_style = ParagraphStyle(
+        'Title',
+        parent=styles['Heading1'],
+        fontName=FONT_NAME,
+        fontSize=18,
+        alignment=1,  # 置中
+        spaceAfter=10*mm,
+    )
+    
+    subtitle_style = ParagraphStyle(
+        'Subtitle',
+        parent=styles['Heading2'],
+        fontName=FONT_NAME,
+        fontSize=14,
+        spaceBefore=8*mm,
+        spaceAfter=4*mm,
+    )
+    
+    normal_style = ParagraphStyle(
+        'Normal',
+        parent=styles['Normal'],
+        fontName=FONT_NAME,
+        fontSize=10,
+    )
     
     # 標題
-    content.append(Paragraph(f"高檢病人動態系統 - 每日報表", title_style))
-    content.append(Paragraph(f"報表日期：{target_date.strftime('%Y年%m月%d日')}", normal_style))
-    content.append(Paragraph(f"產生時間：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", small_style))
-    content.append(Spacer(1, 0.5*cm))
+    elements.append(Paragraph(
+        f"Daily Report - {target_date.strftime('%Y-%m-%d')}",
+        title_style
+    ))
+    elements.append(Paragraph(
+        "Chang Bing Show Chwan High-End Checkup Center",
+        normal_style
+    ))
+    elements.append(Spacer(1, 5*mm))
     
-    # 摘要統計
-    content.append(Paragraph("每日摘要", subtitle_style))
+    # 摘要區塊
+    elements.append(Paragraph("Summary", subtitle_style))
+    
     summary_data = [
-        ['項目', '數值'],
-        ['總病人數', str(summary['patients']['total'])],
-        ['已完成', str(summary['patients']['completed'])],
-        ['進行中', str(summary['patients']['in_progress'])],
-        ['未開始', str(summary['patients']['not_started'])],
-        ['完成率', f"{summary['patients']['completion_rate']}%"],
+        ['Item', 'Count', 'Rate'],
+        ['Total Patients', str(summary['patients']['total']), '-'],
+        ['Completed', str(summary['patients']['completed']), f"{summary['patients']['completion_rate']}%"],
+        ['In Progress', str(summary['patients']['in_progress']), '-'],
+        ['Not Started', str(summary['patients']['not_started']), '-'],
+        ['Equipment Total', str(summary['equipment']['total']), '-'],
+        ['Equipment Broken', str(summary['equipment']['broken']), '-'],
     ]
-    summary_table = Table(summary_data, colWidths=[6*cm, 4*cm])
+    
+    summary_table = Table(summary_data, colWidths=[60*mm, 40*mm, 40*mm])
     summary_table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#3B82F6')),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-        ('FONTNAME', (0, 0), (-1, -1), CHINESE_FONT),
-        ('FONTSIZE', (0, 0), (-1, -1), 10),
         ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+        ('FONTNAME', (0, 0), (-1, -1), FONT_NAME),
+        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+        ('TOPPADDING', (0, 0), (-1, 0), 8),
+        ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor('#F3F4F6')),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#D1D5DB')),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F9FAFB')]),
     ]))
-    content.append(summary_table)
-    content.append(Spacer(1, 0.5*cm))
+    elements.append(summary_table)
     
     # 檢查站統計
-    content.append(Paragraph("檢查站統計", subtitle_style))
-    station_data = [['檢查站', '代碼', '完成數', '等候中', '檢查中']]
-    for stat in station_stats:
-        station_data.append([stat['exam_name'], stat['exam_code'], str(stat['completed']), str(stat['waiting']), str(stat['in_exam'])])
-    station_table = Table(station_data, colWidths=[4*cm, 2*cm, 2*cm, 2*cm, 2*cm])
-    station_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#10B981')),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-        ('FONTNAME', (0, 0), (-1, -1), CHINESE_FONT),
-        ('FONTSIZE', (0, 0), (-1, -1), 9),
-        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
-    ]))
-    content.append(station_table)
-    content.append(Spacer(1, 0.5*cm))
+    elements.append(Paragraph("Station Statistics", subtitle_style))
     
-    # 病人列表
-    content.append(Paragraph("病人詳細列表", subtitle_style))
-    patients = db.query(Patient).filter(Patient.exam_date == target_date, Patient.is_active == True).all()
-    patient_data = [['病歷號', '姓名', '狀態', '位置', '個管師']]
-    for patient in patients:
-        tracking = db.query(PatientTracking).filter(PatientTracking.patient_id == patient.id, PatientTracking.exam_date == target_date).first()
-        assignment = db.query(CoordinatorAssignment).filter(CoordinatorAssignment.patient_id == patient.id, CoordinatorAssignment.exam_date == target_date, CoordinatorAssignment.is_active == True).first()
-        coordinator_name = "-"
-        if assignment:
-            coord = db.query(User).filter(User.id == assignment.coordinator_id).first()
-            if coord:
-                coordinator_name = coord.display_name or "-"
-        status_map = {'waiting': '等候中', 'in_exam': '檢查中', 'completed': '已完成'}
-        status = '未開始'
-        location = '-'
-        if tracking:
-            status = status_map.get(tracking.current_status, tracking.current_status)
-            location = tracking.current_location or '-'
-        patient_data.append([patient.chart_no, patient.name, status, location, coordinator_name])
-    patient_table = Table(patient_data, colWidths=[3*cm, 3*cm, 2.5*cm, 3*cm, 3*cm])
-    patient_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#F59E0B')),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-        ('FONTNAME', (0, 0), (-1, -1), CHINESE_FONT),
-        ('FONTSIZE', (0, 0), (-1, -1), 9),
-        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
-    ]))
-    content.append(patient_table)
+    station_data = [['Station', 'Completed', 'Waiting', 'In Exam', 'Status']]
+    for s in station_stats:
+        status_text = 'OK' if s['equipment_status'] == 'normal' else 'BROKEN'
+        station_data.append([
+            s['exam_name'],
+            str(s['completed']),
+            str(s['waiting']),
+            str(s['in_exam']),
+            status_text,
+        ])
+    
+    if len(station_data) > 1:
+        station_table = Table(station_data, colWidths=[50*mm, 30*mm, 30*mm, 30*mm, 30*mm])
+        station_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#10B981')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, -1), FONT_NAME),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
+            ('TOPPADDING', (0, 0), (-1, 0), 6),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#D1D5DB')),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F0FDF4')]),
+        ]))
+        elements.append(station_table)
+    else:
+        elements.append(Paragraph("No station data", normal_style))
+    
+    # 專員統計
+    elements.append(Paragraph("Coordinator Statistics", subtitle_style))
+    
+    coord_data = [['Name', 'Assignments', 'Current Patient', 'Status', 'Operations']]
+    for c in coordinator_stats:
+        coord_data.append([
+            c['name'],
+            str(c['total_assignments']),
+            c['current_patient'] or '-',
+            c['current_status'],
+            str(c['operations']),
+        ])
+    
+    if len(coord_data) > 1:
+        coord_table = Table(coord_data, colWidths=[40*mm, 25*mm, 40*mm, 30*mm, 25*mm])
+        coord_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#8B5CF6')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, -1), FONT_NAME),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
+            ('TOPPADDING', (0, 0), (-1, 0), 6),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#D1D5DB')),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F5F3FF')]),
+        ]))
+        elements.append(coord_table)
+    else:
+        elements.append(Paragraph("No coordinator data", normal_style))
     
     # 頁尾
-    content.append(Spacer(1, 1*cm))
-    content.append(Paragraph("彰濱秀傳醫院 高級健檢中心 - Heal-Arrange 系統自動產生", small_style))
+    elements.append(Spacer(1, 10*mm))
+    footer_style = ParagraphStyle(
+        'Footer',
+        parent=styles['Normal'],
+        fontName=FONT_NAME,
+        fontSize=8,
+        textColor=colors.gray,
+        alignment=1,
+    )
+    elements.append(Paragraph(
+        f"Generated at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+        footer_style
+    ))
     
-    doc.build(content)
-    pdf_bytes = buffer.getvalue()
-    buffer.close()
-    return pdf_bytes
+    # 建立 PDF
+    doc.build(elements)
+    buffer.seek(0)
+    
+    return buffer.getvalue()
 
 
-def create_patient_list_pdf(db: Session, target_date: date) -> bytes:
-    """產生病人清單 PDF（適合列印）"""
-    buffer = BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=1*cm, leftMargin=1*cm, topMargin=1*cm, bottomMargin=1*cm)
+def generate_trend_report_pdf(db: Session, days: int = 7) -> bytes:
+    """
+    產生趨勢報表 PDF
+    """
+    from datetime import timedelta
+    from .stats import get_date_range_summary
     
-    title_style = ParagraphStyle('Title', fontName=CHINESE_FONT, fontSize=16, alignment=1, spaceAfter=12)
-    content = []
-    content.append(Paragraph(f"病人清單 - {target_date.strftime('%Y年%m月%d日')}", title_style))
-    content.append(Spacer(1, 0.3*cm))
+    end_date = date.today()
+    start_date = end_date - timedelta(days=days-1)
     
-    patients = db.query(Patient).filter(Patient.exam_date == target_date, Patient.is_active == True).order_by(Patient.chart_no).all()
-    data = [['#', '病歷號', '姓名', '檢查項目', '報到', '完成']]
-    for i, patient in enumerate(patients, 1):
-        exam_list = patient.notes or '-'
-        if len(exam_list) > 20:
-            exam_list = exam_list[:20] + '...'
-        data.append([str(i), patient.chart_no, patient.name, exam_list, '☐', '☐'])
+    daily_summaries = get_date_range_summary(db, start_date, end_date)
     
-    table = Table(data, colWidths=[1*cm, 2.5*cm, 2.5*cm, 6*cm, 1.5*cm, 1.5*cm])
-    table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#374151')),
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        rightMargin=20*mm,
+        leftMargin=20*mm,
+        topMargin=20*mm,
+        bottomMargin=20*mm,
+    )
+    
+    elements = []
+    styles = getSampleStyleSheet()
+    
+    title_style = ParagraphStyle(
+        'Title',
+        parent=styles['Heading1'],
+        fontName=FONT_NAME,
+        fontSize=18,
+        alignment=1,
+        spaceAfter=10*mm,
+    )
+    
+    subtitle_style = ParagraphStyle(
+        'Subtitle',
+        parent=styles['Heading2'],
+        fontName=FONT_NAME,
+        fontSize=14,
+        spaceBefore=8*mm,
+        spaceAfter=4*mm,
+    )
+    
+    # 標題
+    elements.append(Paragraph(
+        f"Trend Report - {days} Days",
+        title_style
+    ))
+    elements.append(Paragraph(
+        f"{start_date.strftime('%Y-%m-%d')} ~ {end_date.strftime('%Y-%m-%d')}",
+        ParagraphStyle('Center', alignment=1, fontName=FONT_NAME)
+    ))
+    elements.append(Spacer(1, 5*mm))
+    
+    # 統計摘要
+    total_patients = sum(s['patients']['total'] for s in daily_summaries)
+    total_completed = sum(s['patients']['completed'] for s in daily_summaries)
+    avg_completion = round(total_completed / total_patients * 100, 1) if total_patients > 0 else 0
+    
+    elements.append(Paragraph("Overall Statistics", subtitle_style))
+    
+    overall_data = [
+        ['Metric', 'Value'],
+        ['Total Patients', str(total_patients)],
+        ['Total Completed', str(total_completed)],
+        ['Average Completion Rate', f"{avg_completion}%"],
+        ['Daily Average', str(round(total_patients / days, 1))],
+    ]
+    
+    overall_table = Table(overall_data, colWidths=[80*mm, 60*mm])
+    overall_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#3B82F6')),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-        ('FONTNAME', (0, 0), (-1, -1), CHINESE_FONT),
-        ('FONTSIZE', (0, 0), (-1, -1), 9),
         ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-        ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
+        ('FONTNAME', (0, 0), (-1, -1), FONT_NAME),
+        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#D1D5DB')),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F3F4F6')]),
     ]))
-    content.append(table)
-    content.append(Spacer(1, 0.5*cm))
-    content.append(Paragraph(f"共 {len(patients)} 位病人", ParagraphStyle('Footer', fontName=CHINESE_FONT, fontSize=10, alignment=2)))
+    elements.append(overall_table)
     
-    doc.build(content)
-    pdf_bytes = buffer.getvalue()
-    buffer.close()
-    return pdf_bytes
+    # 每日明細
+    elements.append(Paragraph("Daily Details", subtitle_style))
+    
+    daily_data = [['Date', 'Total', 'Completed', 'In Progress', 'Completion %']]
+    for s in daily_summaries:
+        daily_data.append([
+            s['date'].strftime('%m/%d'),
+            str(s['patients']['total']),
+            str(s['patients']['completed']),
+            str(s['patients']['in_progress']),
+            f"{s['patients']['completion_rate']}%",
+        ])
+    
+    daily_table = Table(daily_data, colWidths=[30*mm, 30*mm, 30*mm, 35*mm, 35*mm])
+    daily_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#10B981')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, -1), FONT_NAME),
+        ('FONTSIZE', (0, 0), (-1, -1), 9),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#D1D5DB')),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F0FDF4')]),
+    ]))
+    elements.append(daily_table)
+    
+    # 頁尾
+    elements.append(Spacer(1, 10*mm))
+    footer_style = ParagraphStyle(
+        'Footer',
+        fontName=FONT_NAME,
+        fontSize=8,
+        textColor=colors.gray,
+        alignment=1,
+    )
+    elements.append(Paragraph(
+        f"Generated at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+        footer_style
+    ))
+    
+    doc.build(elements)
+    buffer.seek(0)
+    
+    return buffer.getvalue()
