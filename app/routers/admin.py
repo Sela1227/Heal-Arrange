@@ -1,10 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-管理後台路由 - 更新版（含角色模擬）
-========================================
-完整替換現有的 admin.py
-已更新：個管師 → 專員
-========================================
+管理後台路由 - 新增組長角色 + 角色模擬
 """
 
 from datetime import date
@@ -20,7 +16,7 @@ from ..models.user import User, UserRole
 from ..models.patient import Patient
 from ..models.exam import Exam, DEFAULT_EXAMS
 from ..models.equipment import Equipment, EquipmentLog, EquipmentStatus
-from ..services.auth import get_current_user, require_role
+from ..services.auth import get_current_user
 
 router = APIRouter(prefix="/admin", tags=["管理後台"])
 templates = Jinja2Templates(directory="app/templates")
@@ -132,7 +128,7 @@ async def toggle_user_active(
 
 
 # ======================
-# 病人匯入
+# 病人管理
 # ======================
 
 @router.get("/patients", response_class=HTMLResponse)
@@ -328,15 +324,23 @@ async def add_exam(
     existing = db.query(Exam).filter(Exam.exam_code == exam_code).first()
     if existing:
         existing.name = name
-        existing.duration_minutes = duration_minutes
+        # 嘗試更新 duration_min 或 duration_minutes
+        if hasattr(existing, 'duration_min'):
+            existing.duration_min = duration_minutes
+        if hasattr(existing, 'duration_minutes'):
+            existing.duration_minutes = duration_minutes
         existing.location = location
     else:
         exam = Exam(
             exam_code=exam_code,
             name=name,
-            duration_minutes=duration_minutes,
             location=location,
         )
+        # 設定時間欄位
+        if hasattr(exam, 'duration_min'):
+            exam.duration_min = duration_minutes
+        if hasattr(exam, 'duration_minutes'):
+            exam.duration_minutes = duration_minutes
         db.add(exam)
     
     db.commit()
@@ -386,7 +390,7 @@ async def init_equipment(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
-    """初始化設備（依檢查站建立）"""
+    """初始化設備"""
     exams = db.query(Exam).filter(Exam.is_active == True).all()
     count = 0
     
@@ -480,9 +484,10 @@ async def admin_impersonate(
     """角色模擬選擇頁面"""
     from ..services import impersonate as impersonate_service
     
-    # 取得可模擬的用戶
+    # 取得可模擬的用戶（按角色分類）
     dispatchers = impersonate_service.get_impersonatable_users(db, "dispatcher")
     coordinators = impersonate_service.get_impersonatable_users(db, "coordinator")
+    leaders = impersonate_service.get_impersonatable_users(db, "leader")
     patients = impersonate_service.get_impersonatable_patients(db)
     
     # 目前模擬狀態
@@ -493,6 +498,7 @@ async def admin_impersonate(
         "user": current_user,
         "dispatchers": dispatchers,
         "coordinators": coordinators,
+        "leaders": leaders,
         "patients": patients,
         "impersonate_status": status,
         "today": date.today(),
@@ -511,18 +517,26 @@ async def start_impersonate(
     """開始角色模擬"""
     from ..services import impersonate as impersonate_service
     
+    # 呼叫服務開始模擬
     result = impersonate_service.start_impersonation(
         request=request,
-        admin_user=current_user,
+        admin_id=current_user.id,
         target_role=role,
         target_user_id=user_id,
         target_patient_id=patient_id,
     )
     
-    if result["success"]:
-        return RedirectResponse(url=result["redirect_url"], status_code=302)
-    else:
-        return RedirectResponse(url="/admin/impersonate?error=" + result["message"], status_code=302)
+    if not result["success"]:
+        return RedirectResponse(
+            url=f"/admin/impersonate?error={result['error']}",
+            status_code=302
+        )
+    
+    # 建立回應並設定 Cookie
+    response = RedirectResponse(url=result["redirect_url"], status_code=302)
+    impersonate_service.set_impersonate_cookie(response, result["token"])
+    
+    return response
 
 
 @router.post("/impersonate/end")
@@ -533,13 +547,15 @@ async def end_impersonate(
     """結束角色模擬"""
     from ..services import impersonate as impersonate_service
     
-    result = impersonate_service.end_impersonation(request)
+    # 建立回應並清除 Cookie
+    response = RedirectResponse(url="/admin", status_code=302)
+    impersonate_service.clear_impersonate_cookie(response)
     
-    return RedirectResponse(url="/admin", status_code=302)
+    return response
 
 
 @router.get("/impersonate/status")
-async def get_impersonate_status(
+async def get_impersonate_status_api(
     request: Request,
     db: Session = Depends(get_db),
 ):

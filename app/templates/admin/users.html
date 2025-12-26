@@ -47,6 +47,7 @@
                             <option value="pending" {% if u.role == 'pending' %}selected{% endif %}>待審核</option>
                             <option value="coordinator" {% if u.role == 'coordinator' %}selected{% endif %}>專員</option>
                             <option value="dispatcher" {% if u.role == 'dispatcher' %}selected{% endif %}>調度員</option>
+                            <option value="leader" {% if u.role == 'leader' %}selected{% endif %}>組長</option>
                             <option value="admin" {% if u.role == 'admin' %}selected{% endif %}>管理員</option>
                         </select>
                     </form>
@@ -85,7 +86,7 @@
 <!-- 角色說明 -->
 <div class="mt-6 bg-gray-50 rounded-xl p-6">
     <h3 class="font-bold text-gray-700 mb-4">📋 角色說明</h3>
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm">
+    <div class="grid grid-cols-1 md:grid-cols-5 gap-4 text-sm">
         <div class="bg-white p-4 rounded-lg">
             <span class="font-bold text-yellow-600">⏳ 待審核</span>
             <p class="text-gray-500 mt-1">新註冊用戶，無法使用系統</p>
@@ -97,6 +98,10 @@
         <div class="bg-white p-4 rounded-lg">
             <span class="font-bold text-blue-600">📊 調度員</span>
             <p class="text-gray-500 mt-1">病人指派、即時監控</p>
+        </div>
+        <div class="bg-white p-4 rounded-lg border-2 border-purple-200">
+            <span class="font-bold text-purple-600">👑 組長</span>
+            <p class="text-gray-500 mt-1">調度員 + 專員權限</p>
         </div>
         <div class="bg-white p-4 rounded-lg">
             <span class="font-bold text-red-600">🛠️ 管理員</span>

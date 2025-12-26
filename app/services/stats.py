@@ -135,12 +135,13 @@ def get_station_statistics(db: Session, target_date: date = None) -> List[Dict]:
 
 
 def get_coordinator_statistics(db: Session, target_date: date = None) -> List[Dict]:
-    """取得專員工作統計（原個管師）"""
+    """取得專員工作統計（含組長）"""
     if target_date is None:
         target_date = date.today()
     
+    # 專員和組長都可以當專員用
     coordinators = db.query(User).filter(
-        User.role == UserRole.COORDINATOR.value,
+        User.role.in_([UserRole.COORDINATOR.value, UserRole.LEADER.value]),
         User.is_active == True
     ).all()
     

@@ -27,6 +27,8 @@
         <div class="mb-6">
             {% if user.role == 'admin' %}
             <span class="px-3 py-1 bg-red-100 text-red-700 rounded-full text-sm">管理員</span>
+            {% elif user.role == 'leader' %}
+            <span class="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-sm">組長</span>
             {% elif user.role == 'dispatcher' %}
             <span class="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm">調度員</span>
             {% elif user.role == 'coordinator' %}
@@ -51,13 +53,13 @@
             </a>
             {% endif %}
             
-            {% if user.role in ['admin', 'dispatcher'] %}
+            {% if user.role in ['admin', 'leader', 'dispatcher'] %}
             <a href="/dispatcher" class="block w-full bg-blue-500 hover:bg-blue-600 text-white py-3 rounded-lg font-medium transition">
                 📊 調度台
             </a>
             {% endif %}
             
-            {% if user.role in ['admin', 'coordinator'] %}
+            {% if user.role in ['admin', 'leader', 'coordinator'] %}
             <a href="/coordinator" class="block w-full bg-green-500 hover:bg-green-600 text-white py-3 rounded-lg font-medium transition">
                 👤 我的病人
             </a>
@@ -85,6 +87,7 @@
             <p>系統角色說明：</p>
             <ul class="mt-2 space-y-1 text-left max-w-xs mx-auto">
                 <li>👨‍💼 <strong>管理員</strong> - 系統設定與帳號管理</li>
+                <li>👑 <strong>組長</strong> - 調度員 + 專員權限</li>
                 <li>📊 <strong>調度員</strong> - 病人指派與即時監控</li>
                 <li>👤 <strong>專員</strong> - 陪同病人與狀態回報</li>
             </ul>

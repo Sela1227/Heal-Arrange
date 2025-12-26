@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-個管師路由 - 我的病人與狀態回報
+專員路由 - 我的病人與狀態回報
+支援：管理員、組長、專員
 """
 
 from datetime import date
@@ -10,15 +11,28 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..models.user import User, Permission
+from ..models.user import User, UserRole
 from ..models.exam import Exam
 from ..models.tracking import TrackingStatus
 from ..models.equipment import Equipment, EquipmentLog, EquipmentStatus
-from ..services.auth import get_current_user, require_coordinator
+from ..services.auth import get_current_user
 from ..services import tracking as tracking_service
 
-router = APIRouter(prefix="/coordinator", tags=["個管師"])
+router = APIRouter(prefix="/coordinator", tags=["專員"])
 templates = Jinja2Templates(directory="app/templates")
+
+
+def require_coordinator(request: Request, db: Session = Depends(get_db)) -> User:
+    """要求專員權限（管理員、組長也可以）"""
+    user = get_current_user(request, db)
+    if not user:
+        raise HTTPException(status_code=401, detail="請先登入")
+    
+    # 管理員、組長、專員都可以存取
+    allowed_roles = [UserRole.ADMIN.value, UserRole.LEADER.value, UserRole.COORDINATOR.value]
+    if user.role not in allowed_roles:
+        raise HTTPException(status_code=403, detail="需要專員權限")
+    return user
 
 
 @router.get("", response_class=HTMLResponse)
@@ -27,7 +41,7 @@ async def coordinator_my_patient(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_coordinator),
 ):
-    """個管師 - 我的病人頁面"""
+    """專員 - 我的病人頁面"""
     today = date.today()
     
     # 取得我負責的病人
@@ -208,7 +222,7 @@ async def report_equipment_failure(
             action="report_failure",
             old_status=old_status,
             new_status=EquipmentStatus.BROKEN.value,
-            description=description or "個管師回報故障",
+            description=description or "專員回報故障",
             operator_id=current_user.id,
         )
         db.add(log)

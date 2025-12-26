@@ -1,19 +1,20 @@
 # -*- coding: utf-8 -*-
 """
-認證服務 - LINE Login + JWT + 權限檢查
+認證服務 - LINE Login + JWT
+新用戶預設為「組長」角色（測試階段）
 """
 
 import httpx
 import jwt
 from datetime import datetime, timedelta
-from typing import Optional, List, Dict
+from typing import Optional, Dict
 from urllib.parse import urlencode
 from fastapi import Request, HTTPException, Depends
 from sqlalchemy.orm import Session
 
 from ..config import settings
 from ..database import get_db
-from ..models.user import User, Permission
+from ..models.user import User, UserRole
 
 
 # ===================================
@@ -98,7 +99,7 @@ async def get_line_profile(access_token: str) -> Dict:
 
 
 def get_or_create_user(db: Session, line_profile: Dict) -> User:
-    """取得或建立使用者"""
+    """取得或建立使用者（新用戶預設為組長）"""
     line_user_id = line_profile.get("userId")
     display_name = line_profile.get("displayName", "未知")
     picture_url = line_profile.get("pictureUrl")
@@ -115,13 +116,14 @@ def get_or_create_user(db: Session, line_profile: Dict) -> User:
         db.refresh(user)
         return user
     
-    # 建立新使用者 - 預設有調度員和個管師權限
+    # ========================================
+    # 建立新使用者 - 預設為「組長」（測試階段）
+    # ========================================
     user = User(
         line_user_id=line_user_id,
         display_name=display_name,
         picture_url=picture_url,
-        permissions=[Permission.DISPATCHER.value, Permission.COORDINATOR.value],  # 預設權限
-        role="active",  # 直接啟用
+        role=UserRole.LEADER.value,  # 🔥 新用戶預設為組長
         last_login=datetime.utcnow(),
     )
     db.add(user)
@@ -164,53 +166,8 @@ def require_login(request: Request, db: Session = Depends(get_db)) -> User:
     return user
 
 
-def require_approved(request: Request, db: Session = Depends(get_db)) -> User:
-    """要求已核准的帳號（有任何權限）"""
-    user = get_current_user(request, db)
-    if not user:
-        raise HTTPException(status_code=401, detail="請先登入")
-    if user.is_pending:
-        raise HTTPException(status_code=403, detail="帳號尚未核准，請等待管理員審核")
-    return user
-
-
 # ===================================
-# 權限檢查 Dependency
-# ===================================
-
-def require_permission(*permissions: str):
-    """
-    建立權限檢查 Dependency
-    
-    使用方式：
-        @router.get("/admin")
-        async def admin_page(user: User = Depends(require_permission("admin"))):
-            ...
-    """
-    def dependency(request: Request, db: Session = Depends(get_db)) -> User:
-        user = get_current_user(request, db)
-        if not user:
-            raise HTTPException(status_code=401, detail="請先登入")
-        
-        if not user.has_any_permission(*permissions):
-            permission_names = {
-                "admin": "管理員",
-                "dispatcher": "調度員", 
-                "coordinator": "個管師",
-            }
-            required = "、".join(permission_names.get(p, p) for p in permissions)
-            raise HTTPException(
-                status_code=403, 
-                detail=f"需要以下任一權限：{required}"
-            )
-        
-        return user
-    
-    return dependency
-
-
-# ===================================
-# 便捷權限檢查函數
+# 角色檢查
 # ===================================
 
 def require_admin(request: Request, db: Session = Depends(get_db)) -> User:
@@ -218,74 +175,51 @@ def require_admin(request: Request, db: Session = Depends(get_db)) -> User:
     user = get_current_user(request, db)
     if not user:
         raise HTTPException(status_code=401, detail="請先登入")
-    if not user.is_admin:
+    if user.role != UserRole.ADMIN.value:
         raise HTTPException(status_code=403, detail="需要管理員權限")
     return user
 
 
 def require_dispatcher(request: Request, db: Session = Depends(get_db)) -> User:
-    """要求調度員權限（管理員也可以）"""
+    """要求調度員權限（管理員、組長也可以）"""
     user = get_current_user(request, db)
     if not user:
         raise HTTPException(status_code=401, detail="請先登入")
-    if not user.has_any_permission(Permission.DISPATCHER.value, Permission.ADMIN.value):
+    if not user.can_access_dispatcher():
         raise HTTPException(status_code=403, detail="需要調度員權限")
     return user
 
 
 def require_coordinator(request: Request, db: Session = Depends(get_db)) -> User:
-    """要求個管師權限（管理員也可以）"""
+    """要求專員權限（管理員、組長也可以）"""
     user = get_current_user(request, db)
     if not user:
         raise HTTPException(status_code=401, detail="請先登入")
-    if not user.has_any_permission(Permission.COORDINATOR.value, Permission.ADMIN.value):
-        raise HTTPException(status_code=403, detail="需要個管師權限")
+    if not user.can_access_coordinator():
+        raise HTTPException(status_code=403, detail="需要專員權限")
     return user
 
-
-def require_admin_or_dispatcher(request: Request, db: Session = Depends(get_db)) -> User:
-    """要求管理員或調度員權限"""
-    user = get_current_user(request, db)
-    if not user:
-        raise HTTPException(status_code=401, detail="請先登入")
-    if not user.has_any_permission(Permission.ADMIN.value, Permission.DISPATCHER.value):
-        raise HTTPException(status_code=403, detail="需要管理員或調度員權限")
-    return user
-
-
-# ===================================
-# 向後兼容 - 舊角色檢查
-# ===================================
 
 def require_role(*roles: str):
-    """舊版角色檢查（向後兼容）"""
+    """動態角色檢查"""
     def dependency(request: Request, db: Session = Depends(get_db)) -> User:
         user = get_current_user(request, db)
         if not user:
             raise HTTPException(status_code=401, detail="請先登入")
         
-        for role in roles:
-            if role == "admin" and user.is_admin:
+        # 管理員可以存取所有
+        if user.role == UserRole.ADMIN.value:
+            return user
+        
+        # 組長可以存取調度員和專員
+        if user.role == UserRole.LEADER.value:
+            if "dispatcher" in roles or "coordinator" in roles or "leader" in roles:
                 return user
-            if role == "dispatcher" and (user.is_dispatcher or user.is_admin):
-                return user
-            if role == "coordinator" and (user.is_coordinator or user.is_admin):
-                return user
+        
+        # 檢查具體角色
+        if user.role in roles:
+            return user
         
         raise HTTPException(status_code=403, detail="權限不足")
     
     return dependency
-
-
-def migrate_role_to_permissions(user: User) -> List[str]:
-    """將舊的 role 轉換為新的 permissions（遷移用）"""
-    role = user.role
-    
-    if role == "admin":
-        return [Permission.ADMIN.value, Permission.DISPATCHER.value, Permission.COORDINATOR.value]
-    elif role == "dispatcher":
-        return [Permission.DISPATCHER.value]
-    elif role == "coordinator":
-        return [Permission.COORDINATOR.value]
-    else:
-        return []

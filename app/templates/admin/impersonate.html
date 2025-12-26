@@ -10,37 +10,25 @@
 
 <!-- 說明 -->
 <div class="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6">
-    <div class="flex items-start">
-        <span class="text-2xl mr-3">💡</span>
-        <div>
-            <h3 class="font-bold text-blue-800">功能說明</h3>
-            <p class="text-blue-700 text-sm mt-1">
-                角色模擬讓管理員可以切換到其他角色的視角，查看他們實際看到的畫面。
-                這對於 Debug、培訓和使用者體驗測試非常有用。
-            </p>
-            <p class="text-blue-600 text-sm mt-2">
-                ⚠️ 模擬期間會有明顯的紅色提示條，所有操作都會以被模擬者的身份進行。
-            </p>
-        </div>
-    </div>
+    <p class="text-blue-800">
+        <span class="font-bold">💡 使用說明：</span>
+        選擇要模擬的角色和用戶，即可切換到該用戶的視角查看系統畫面。
+        模擬期間會在頂部顯示紅色提示條。
+    </p>
 </div>
 
 {% if impersonate_status.is_impersonating %}
-<!-- 目前正在模擬中 -->
-<div class="bg-red-50 border-2 border-red-300 rounded-xl p-6 mb-6">
-    <div class="flex items-center justify-between">
-        <div class="flex items-center">
-            <span class="text-3xl mr-4">🎭</span>
-            <div>
-                <h3 class="font-bold text-red-800 text-lg">目前正在模擬中</h3>
-                <p class="text-red-700">
-                    角色：<strong>{{ impersonate_status.role_name }}</strong>
-                </p>
-            </div>
+<!-- 目前正在模擬 -->
+<div class="bg-red-50 border border-red-200 rounded-xl p-6 mb-6">
+    <div class="flex justify-between items-center">
+        <div>
+            <span class="text-2xl mr-2">🎭</span>
+            <span class="font-bold text-red-700">目前正在模擬：</span>
+            <span class="text-red-600">{{ impersonate_status.role_name }}</span>
         </div>
         <form action="/admin/impersonate/end" method="POST">
             <button type="submit" 
-                    class="bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-lg font-bold">
+                    class="bg-red-500 hover:bg-red-600 text-white px-6 py-2 rounded-lg font-bold">
                 🛑 結束模擬
             </button>
         </form>
@@ -48,130 +36,93 @@
 </div>
 {% endif %}
 
-<!-- 選擇角色 -->
-<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
     
-    <!-- 調度員 -->
-    <div class="bg-white rounded-xl shadow overflow-hidden">
-        <div class="px-4 py-3 bg-blue-500 text-white font-bold flex items-center">
-            <span class="text-xl mr-2">📊</span>
-            調度員
-        </div>
-        <div class="p-4">
-            <p class="text-gray-600 text-sm mb-4">
-                病人指派、即時監控、報表查看
-            </p>
-            
-            {% if dispatchers %}
-            <form action="/admin/impersonate/start" method="POST">
-                <input type="hidden" name="role" value="dispatcher">
-                <div class="mb-3">
-                    <label class="block text-sm text-gray-600 mb-1">選擇調度員</label>
-                    <select name="user_id" required
-                            class="w-full border rounded-lg px-3 py-2">
-                        {% for u in dispatchers %}
-                        <option value="{{ u.id }}">{{ u.display_name or u.line_user_id }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <button type="submit"
-                        class="w-full bg-blue-500 hover:bg-blue-600 text-white py-2 rounded-lg font-medium">
-                    🎭 開始模擬
-                </button>
-            </form>
-            {% else %}
-            <div class="text-center text-gray-400 py-4">
-                <div class="text-3xl mb-2">📭</div>
-                <p>尚無調度員帳號</p>
-            </div>
-            {% endif %}
-        </div>
-    </div>
-    
-    <!-- 專員（原個管師） -->
-    <div class="bg-white rounded-xl shadow overflow-hidden">
-        <div class="px-4 py-3 bg-green-500 text-white font-bold flex items-center">
-            <span class="text-xl mr-2">👤</span>
-            專員
-        </div>
-        <div class="p-4">
-            <p class="text-gray-600 text-sm mb-4">
-                陪同病人、狀態回報、故障通報
-            </p>
-            
-            {% if coordinators %}
-            <form action="/admin/impersonate/start" method="POST">
-                <input type="hidden" name="role" value="coordinator">
-                <div class="mb-3">
-                    <label class="block text-sm text-gray-600 mb-1">選擇專員</label>
-                    <select name="user_id" required
-                            class="w-full border rounded-lg px-3 py-2">
-                        {% for u in coordinators %}
-                        <option value="{{ u.id }}">{{ u.display_name or u.line_user_id }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <button type="submit"
-                        class="w-full bg-green-500 hover:bg-green-600 text-white py-2 rounded-lg font-medium">
-                    🎭 開始模擬
-                </button>
-            </form>
-            {% else %}
-            <div class="text-center text-gray-400 py-4">
-                <div class="text-3xl mb-2">📭</div>
-                <p>尚無專員帳號</p>
-            </div>
-            {% endif %}
-        </div>
-    </div>
-    
-    <!-- 病人 -->
-    <div class="bg-white rounded-xl shadow overflow-hidden">
-        <div class="px-4 py-3 bg-purple-500 text-white font-bold flex items-center">
-            <span class="text-xl mr-2">🏥</span>
-            病人
-        </div>
-        <div class="p-4">
-            <p class="text-gray-600 text-sm mb-4">
-                查看檢查進度、等候時間（{{ today }} 當日病人）
-            </p>
-            
-            {% if patients %}
-            <form action="/admin/impersonate/start" method="POST">
-                <input type="hidden" name="role" value="patient">
-                <div class="mb-3">
-                    <label class="block text-sm text-gray-600 mb-1">選擇病人</label>
-                    <select name="patient_id" required
-                            class="w-full border rounded-lg px-3 py-2">
-                        {% for p in patients %}
-                        <option value="{{ p.id }}">{{ p.name }} ({{ p.chart_no }})</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <button type="submit"
+    <!-- 模擬組長 -->
+    <div class="bg-white rounded-xl shadow p-6">
+        <h3 class="font-bold text-lg text-purple-700 mb-4">👑 模擬組長</h3>
+        <p class="text-sm text-gray-500 mb-4">組長同時擁有調度員和專員權限</p>
+        
+        {% if leaders %}
+        <form action="/admin/impersonate/start" method="POST">
+            <input type="hidden" name="role" value="leader">
+            <div class="space-y-3">
+                <select name="user_id" required class="w-full border rounded-lg px-3 py-2">
+                    <option value="">選擇組長</option>
+                    {% for u in leaders %}
+                    <option value="{{ u.id }}">{{ u.display_name }}</option>
+                    {% endfor %}
+                </select>
+                <button type="submit" 
                         class="w-full bg-purple-500 hover:bg-purple-600 text-white py-2 rounded-lg font-medium">
                     🎭 開始模擬
                 </button>
-            </form>
-            {% else %}
-            <div class="text-center text-gray-400 py-4">
-                <div class="text-3xl mb-2">📭</div>
-                <p>今日尚無病人</p>
-                <p class="text-xs mt-1">請先在病人管理中匯入</p>
             </div>
-            {% endif %}
-        </div>
+        </form>
+        {% else %}
+        <p class="text-gray-400 text-center py-4">目前沒有組長</p>
+        {% endif %}
     </div>
+    
+    <!-- 模擬調度員 -->
+    <div class="bg-white rounded-xl shadow p-6">
+        <h3 class="font-bold text-lg text-blue-700 mb-4">📊 模擬調度員</h3>
+        <p class="text-sm text-gray-500 mb-4">查看調度員的病人指派與監控畫面</p>
+        
+        {% if dispatchers %}
+        <form action="/admin/impersonate/start" method="POST">
+            <input type="hidden" name="role" value="dispatcher">
+            <div class="space-y-3">
+                <select name="user_id" required class="w-full border rounded-lg px-3 py-2">
+                    <option value="">選擇調度員</option>
+                    {% for u in dispatchers %}
+                    <option value="{{ u.id }}">{{ u.display_name }}</option>
+                    {% endfor %}
+                </select>
+                <button type="submit" 
+                        class="w-full bg-blue-500 hover:bg-blue-600 text-white py-2 rounded-lg font-medium">
+                    🎭 開始模擬
+                </button>
+            </div>
+        </form>
+        {% else %}
+        <p class="text-gray-400 text-center py-4">目前沒有調度員</p>
+        {% endif %}
+    </div>
+    
+    <!-- 模擬專員 -->
+    <div class="bg-white rounded-xl shadow p-6">
+        <h3 class="font-bold text-lg text-green-700 mb-4">👤 模擬專員</h3>
+        <p class="text-sm text-gray-500 mb-4">查看專員的病人陪同與狀態回報畫面</p>
+        
+        {% if coordinators %}
+        <form action="/admin/impersonate/start" method="POST">
+            <input type="hidden" name="role" value="coordinator">
+            <div class="space-y-3">
+                <select name="user_id" required class="w-full border rounded-lg px-3 py-2">
+                    <option value="">選擇專員</option>
+                    {% for u in coordinators %}
+                    <option value="{{ u.id }}">{{ u.display_name }}</option>
+                    {% endfor %}
+                </select>
+                <button type="submit" 
+                        class="w-full bg-green-500 hover:bg-green-600 text-white py-2 rounded-lg font-medium">
+                    🎭 開始模擬
+                </button>
+            </div>
+        </form>
+        {% else %}
+        <p class="text-gray-400 text-center py-4">目前沒有專員</p>
+        {% endif %}
+    </div>
+    
 </div>
 
-<!-- 注意事項 -->
-<div class="mt-6 bg-yellow-50 border border-yellow-200 rounded-xl p-4">
-    <h3 class="font-bold text-yellow-800 mb-2">⚠️ 注意事項</h3>
-    <ul class="text-yellow-700 text-sm space-y-1">
-        <li>• 模擬期間，頁面頂部會顯示紅色提示條</li>
-        <li>• 模擬中的所有操作會以被模擬者的身份進行</li>
-        <li>• 點擊「結束模擬」可隨時返回管理員身份</li>
-        <li>• 病人角色模擬需要先完成 Phase 8（病人自助系統）</li>
-    </ul>
+<!-- 模擬病人（未來功能）
+<div class="mt-6 bg-gray-100 rounded-xl p-6">
+    <h3 class="font-bold text-lg text-gray-500 mb-2">🏥 模擬病人視角</h3>
+    <p class="text-sm text-gray-400">此功能開發中，敬請期待...</p>
 </div>
+-->
+
 {% endblock %}

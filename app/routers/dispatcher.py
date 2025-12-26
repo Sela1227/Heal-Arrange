@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 調度員路由 - 病人總覽與指派
+支援：管理員、組長、調度員
 """
 
 from datetime import date
@@ -10,16 +11,29 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..models.user import User, Permission
+from ..models.user import User, UserRole
 from ..models.patient import Patient
 from ..models.exam import Exam
 from ..models.tracking import PatientTracking, CoordinatorAssignment
 from ..models.equipment import Equipment, EquipmentLog, EquipmentStatus
-from ..services.auth import get_current_user, require_dispatcher
+from ..services.auth import get_current_user
 from ..services import tracking as tracking_service
 
 router = APIRouter(prefix="/dispatcher", tags=["調度員"])
 templates = Jinja2Templates(directory="app/templates")
+
+
+def require_dispatcher(request: Request, db: Session = Depends(get_db)) -> User:
+    """要求調度員權限（管理員、組長也可以）"""
+    user = get_current_user(request, db)
+    if not user:
+        raise HTTPException(status_code=401, detail="請先登入")
+    
+    # 管理員、組長、調度員都可以存取
+    allowed_roles = [UserRole.ADMIN.value, UserRole.LEADER.value, UserRole.DISPATCHER.value]
+    if user.role not in allowed_roles:
+        raise HTTPException(status_code=403, detail="需要調度員權限")
+    return user
 
 
 @router.get("", response_class=HTMLResponse)
@@ -43,12 +57,11 @@ async def dispatcher_dashboard(
     # 取得各站摘要
     station_summary = tracking_service.get_station_summary(db, today)
     
-    # 取得所有個管師（有個管師權限的使用者）
+    # 取得所有專員（含組長，因為組長也可以當專員用）
     coordinators = db.query(User).filter(
+        User.role.in_([UserRole.COORDINATOR.value, UserRole.LEADER.value]),
         User.is_active == True
     ).all()
-    # 過濾出有個管師權限的
-    coordinators = [u for u in coordinators if u.is_coordinator]
     
     # 取得所有檢查項目
     exams = db.query(Exam).filter(Exam.is_active == True).all()
@@ -97,7 +110,7 @@ async def assign_coordinator(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_dispatcher),
 ):
-    """指派個管師給病人"""
+    """指派專員給病人"""
     tracking_service.assign_coordinator(
         db=db,
         patient_id=patient_id,
@@ -174,8 +187,10 @@ async def get_patients_partial(
         info = tracking_service.get_patient_with_tracking(db, p.id, today)
         patient_list.append(info)
     
-    coordinators = db.query(User).filter(User.is_active == True).all()
-    coordinators = [u for u in coordinators if u.is_coordinator]
+    coordinators = db.query(User).filter(
+        User.role.in_([UserRole.COORDINATOR.value, UserRole.LEADER.value]),
+        User.is_active == True
+    ).all()
     
     exams = db.query(Exam).filter(Exam.is_active == True).all()
     
