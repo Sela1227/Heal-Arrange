@@ -37,3 +37,5 @@ pillow==10.2.0
 # Session 管理
 itsdangerous==2.1.2
 starlette-session==0.4.3
+qrcode[pil]==7.4.2
+Pillow>=9.0.0
