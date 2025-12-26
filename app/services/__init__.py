@@ -2,7 +2,6 @@
 """
 服務層模組 - Phase 7 更新
 """
-
 from . import auth
 from . import tracking
 from . import equipment
@@ -17,3 +16,7 @@ from . import qrcode_service
 # Phase 7 新增
 from . import pdf_report
 from . import scheduler
+
+# settings & impersonate（補回）
+from . import settings
+from . import impersonate
