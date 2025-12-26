@@ -78,7 +78,7 @@
         {% include "partials/station_stats.html" %}
     </div>
     
-    <!-- 專員統計（原個管師統計） -->
+    <!-- 專員統計 -->
     <div class="bg-white rounded-xl shadow overflow-hidden"
          hx-get="/admin/reports/api/coordinators?target_date={{ report_date }}"
          hx-trigger="every 10s"

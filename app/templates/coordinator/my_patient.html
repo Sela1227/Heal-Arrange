@@ -1,204 +1,179 @@
 {% extends "base.html" %}
 
-{% block title %}我的病人 - 高檢病人動態系統{% endblock %}
+{% block title %}專員 - 我的病人{% endblock %}
 
 {% block content %}
 <div class="mb-6">
-    <h1 class="text-2xl font-bold text-gray-800">👤 專員 - 我的病人</h1>
-    <p class="text-gray-500 mt-1">{{ today.strftime('%Y年%m月%d日') }}</p>
-</div>
-
-<!-- 通知區域（HTMX 即時更新） -->
-<div id="notifications"
-     hx-get="/coordinator/api/notifications"
-     hx-trigger="every 3s"
-     hx-swap="innerHTML">
-    {% include "partials/notifications.html" %}
+    <h1 class="text-2xl font-bold text-gray-800">👤 我的病人</h1>
+    <p class="text-gray-500">{{ today }}</p>
 </div>
 
 {% if patient_info and patient_info.patient %}
-<!-- 有負責的病人 -->
-<div class="bg-white rounded-xl shadow overflow-hidden mb-6">
-    <div class="px-4 py-3 bg-green-500 text-white font-bold flex items-center justify-between">
-        <span>🏥 我的病人</span>
-        <span class="text-sm font-normal">{{ patient_info.patient.chart_no }}</span>
-    </div>
-    
-    <div class="p-6">
-        <!-- 病人資訊 -->
-        <div class="flex items-center mb-6">
-            <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center text-3xl mr-4">
-                👤
-            </div>
-            <div>
-                <h2 class="text-2xl font-bold text-gray-800">{{ patient_info.patient.name }}</h2>
-                <p class="text-gray-500">
-                    檢查項目：{{ patient_info.patient.exam_list or '未設定' }}
-                </p>
-            </div>
+<!-- 有指派病人 -->
+<div class="max-w-lg mx-auto">
+    <!-- 病人資訊卡 -->
+    <div class="bg-white rounded-xl shadow-lg p-6 mb-6">
+        <div class="text-center mb-4">
+            <div class="text-5xl mb-2">🏥</div>
+            <h2 class="text-2xl font-bold text-gray-800">{{ patient_info.patient.name }}</h2>
+            <p class="text-gray-500">{{ patient_info.patient.chart_no }}</p>
         </div>
         
         <!-- 目前狀態 -->
-        <div class="grid grid-cols-2 gap-4 mb-6">
-            <div class="bg-gray-50 rounded-lg p-4">
-                <div class="text-sm text-gray-500 mb-1">目前狀態</div>
-                <div class="text-xl font-bold">
-                    {% if patient_info.tracking %}
-                        {% if patient_info.tracking.current_status == 'waiting' %}
-                        <span class="text-yellow-600">⏳ 等候中</span>
-                        {% elif patient_info.tracking.current_status == 'in_exam' %}
-                        <span class="text-red-600">🔬 檢查中</span>
-                        {% elif patient_info.tracking.current_status == 'moving' %}
-                        <span class="text-blue-600">🚶 移動中</span>
-                        {% elif patient_info.tracking.current_status == 'completed' %}
-                        <span class="text-green-600">✅ 完成</span>
-                        {% endif %}
+        <div class="bg-gray-50 rounded-lg p-4 mb-4">
+            <div class="flex justify-between items-center">
+                <span class="text-gray-600">目前狀態</span>
+                {% if patient_info.tracking %}
+                    {% if patient_info.tracking.current_status == 'waiting' %}
+                    <span class="px-3 py-1 bg-yellow-100 text-yellow-700 rounded-full">⏳ 等候中</span>
+                    {% elif patient_info.tracking.current_status == 'in_exam' %}
+                    <span class="px-3 py-1 bg-red-100 text-red-700 rounded-full">🔬 檢查中</span>
+                    {% elif patient_info.tracking.current_status == 'moving' %}
+                    <span class="px-3 py-1 bg-blue-100 text-blue-700 rounded-full">🚶 移動中</span>
+                    {% elif patient_info.tracking.current_status == 'completed' %}
+                    <span class="px-3 py-1 bg-green-100 text-green-700 rounded-full">✅ 完成</span>
                     {% else %}
-                    <span class="text-gray-400">未開始</span>
+                    <span class="px-3 py-1 bg-gray-100 text-gray-600 rounded-full">未開始</span>
                     {% endif %}
-                </div>
-            </div>
-            
-            <div class="bg-gray-50 rounded-lg p-4">
-                <div class="text-sm text-gray-500 mb-1">目前位置</div>
-                <div class="text-xl font-bold text-blue-600">
-                    {% if patient_info.tracking and patient_info.tracking.current_location %}
-                    📍 {{ patient_info.tracking.current_location }}
-                    {% if exams_dict and patient_info.tracking.current_location in exams_dict %}
-                    <span class="text-sm font-normal text-gray-500">
-                        ({{ exams_dict[patient_info.tracking.current_location].name }})
-                    </span>
-                    {% endif %}
-                    {% else %}
-                    <span class="text-gray-400">-</span>
-                    {% endif %}
-                </div>
-            </div>
-        </div>
-        
-        <!-- 下一站 -->
-        {% if patient_info.tracking and patient_info.tracking.next_exam_code %}
-        <div class="bg-purple-50 border border-purple-200 rounded-lg p-4 mb-6">
-            <div class="flex items-center">
-                <span class="text-2xl mr-3">➡️</span>
-                <div>
-                    <div class="text-sm text-purple-600">下一站</div>
-                    <div class="text-xl font-bold text-purple-800">
-                        {{ patient_info.tracking.next_exam_code }}
-                        {% if exams_dict and patient_info.tracking.next_exam_code in exams_dict %}
-                        - {{ exams_dict[patient_info.tracking.next_exam_code].name }}
-                        {% endif %}
-                    </div>
-                </div>
-            </div>
-        </div>
-        {% endif %}
-        
-        <!-- 狀態回報按鈕 -->
-        <div class="grid grid-cols-3 gap-4 mb-6">
-            <form action="/coordinator/arrive" method="POST">
-                <button type="submit"
-                        class="w-full bg-blue-500 hover:bg-blue-600 text-white py-4 rounded-xl font-bold text-lg transition">
-                    📍 到達
-                </button>
-            </form>
-            
-            <form action="/coordinator/start" method="POST">
-                <button type="submit"
-                        class="w-full bg-red-500 hover:bg-red-600 text-white py-4 rounded-xl font-bold text-lg transition">
-                    🔬 開始
-                </button>
-            </form>
-            
-            <form action="/coordinator/complete" method="POST">
-                <button type="submit"
-                        class="w-full bg-green-500 hover:bg-green-600 text-white py-4 rounded-xl font-bold text-lg transition">
-                    ✅ 完成
-                </button>
-            </form>
-        </div>
-        
-        <!-- 故障回報 -->
-        {% if current_equipment %}
-        <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
-            <h3 class="font-bold text-yellow-800 mb-2">⚠️ 設備故障回報</h3>
-            <form action="/coordinator/report-equipment-failure" method="POST" class="flex gap-2">
-                <select name="equipment_id" required class="flex-1 border rounded-lg px-3 py-2">
-                    <option value="">選擇故障設備</option>
-                    {% for eq in current_equipment %}
-                    <option value="{{ eq.id }}">{{ eq.name }}</option>
-                    {% endfor %}
-                </select>
-                <button type="submit"
-                        class="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-lg font-medium">
-                    回報
-                </button>
-            </form>
-        </div>
-        {% endif %}
-    </div>
-</div>
-
-<!-- 今日歷程 -->
-<div class="bg-white rounded-xl shadow overflow-hidden">
-    <div class="px-4 py-3 bg-gray-50 border-b font-bold text-gray-700">
-        📜 今日歷程
-    </div>
-    <div class="divide-y max-h-64 overflow-y-auto">
-        {% for h in history %}
-        <div class="px-4 py-3 flex items-center justify-between">
-            <div class="flex items-center">
-                {% if h.action == 'arrive' %}
-                <span class="text-xl mr-3">📍</span>
-                <span class="text-blue-600">到達</span>
-                {% elif h.action == 'start' %}
-                <span class="text-xl mr-3">🔬</span>
-                <span class="text-red-600">開始檢查</span>
-                {% elif h.action == 'complete' %}
-                <span class="text-xl mr-3">✅</span>
-                <span class="text-green-600">完成</span>
-                {% elif h.action == 'assign' %}
-                <span class="text-xl mr-3">📋</span>
-                <span class="text-purple-600">指派</span>
                 {% else %}
-                <span class="text-xl mr-3">📝</span>
-                <span>{{ h.action }}</span>
-                {% endif %}
-                
-                {% if h.location %}
-                <span class="ml-2 text-gray-500">@ {{ h.location }}</span>
+                <span class="px-3 py-1 bg-gray-100 text-gray-600 rounded-full">未開始</span>
                 {% endif %}
             </div>
-            <span class="text-sm text-gray-400">
-                {{ h.timestamp.strftime('%H:%M') }}
-            </span>
+            
+            {% if patient_info.tracking %}
+            <div class="mt-3 flex justify-between text-sm">
+                <span class="text-gray-500">目前位置</span>
+                <span class="font-medium">
+                    {{ patient_info.tracking.current_location or '-' }}
+                    {% if patient_info.tracking.current_location and exams_dict.get(patient_info.tracking.current_location) %}
+                    ({{ exams_dict[patient_info.tracking.current_location].name }})
+                    {% endif %}
+                </span>
+            </div>
+            <div class="mt-2 flex justify-between text-sm">
+                <span class="text-gray-500">下一站</span>
+                <span class="font-medium text-blue-600">
+                    {% if patient_info.tracking.next_exam_code %}
+                    {{ patient_info.tracking.next_exam_code }}
+                    {% if exams_dict.get(patient_info.tracking.next_exam_code) %}
+                    ({{ exams_dict[patient_info.tracking.next_exam_code].name }})
+                    {% endif %}
+                    {% else %}
+                    待指派
+                    {% endif %}
+                </span>
+            </div>
+            {% endif %}
         </div>
-        {% endfor %}
         
-        {% if not history %}
-        <div class="px-4 py-8 text-center text-gray-400">
-            尚無歷程記錄
+        <!-- 檢查項目 -->
+        {% if patient_info.patient.exam_list %}
+        <div class="mb-4">
+            <p class="text-sm text-gray-500 mb-2">檢查項目</p>
+            <div class="flex flex-wrap gap-2">
+                {% for code in patient_info.patient.exam_list.split(',') %}
+                <span class="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-sm">
+                    {{ code.strip() }}
+                </span>
+                {% endfor %}
+            </div>
         </div>
         {% endif %}
     </div>
+    
+    <!-- 快速操作按鈕 -->
+    <div class="grid grid-cols-3 gap-4 mb-6">
+        <form action="/coordinator/arrive" method="POST">
+            <button type="submit" 
+                    class="w-full bg-blue-500 hover:bg-blue-600 text-white py-4 rounded-xl font-bold text-lg shadow-lg transition transform hover:scale-105">
+                📍<br>到達
+            </button>
+        </form>
+        <form action="/coordinator/start" method="POST">
+            <button type="submit"
+                    class="w-full bg-red-500 hover:bg-red-600 text-white py-4 rounded-xl font-bold text-lg shadow-lg transition transform hover:scale-105">
+                🔬<br>開始
+            </button>
+        </form>
+        <form action="/coordinator/complete" method="POST">
+            <button type="submit"
+                    class="w-full bg-green-500 hover:bg-green-600 text-white py-4 rounded-xl font-bold text-lg shadow-lg transition transform hover:scale-105">
+                ✅<br>完成
+            </button>
+        </form>
+    </div>
+    
+    <!-- 設備故障回報 -->
+    {% if current_equipment %}
+    <div class="bg-white rounded-xl shadow p-4 mb-6">
+        <h3 class="font-bold text-gray-700 mb-3">🔧 設備故障回報</h3>
+        <form action="/coordinator/report-equipment-failure" method="POST" class="space-y-3">
+            <select name="equipment_id" required class="w-full border rounded-lg px-3 py-2">
+                <option value="">選擇故障設備</option>
+                {% for eq in current_equipment %}
+                <option value="{{ eq.id }}">{{ eq.name }}</option>
+                {% endfor %}
+            </select>
+            <input type="text" name="description" placeholder="故障描述（選填）"
+                   class="w-full border rounded-lg px-3 py-2">
+            <button type="submit"
+                    class="w-full bg-orange-500 hover:bg-orange-600 text-white py-2 rounded-lg font-medium">
+                🚨 回報故障
+            </button>
+        </form>
+    </div>
+    {% endif %}
+    
+    <!-- 通知區 -->
+    <div id="notifications"
+         hx-get="/coordinator/api/notifications"
+         hx-trigger="every 3s"
+         hx-swap="innerHTML">
+        {% include "partials/notifications.html" %}
+    </div>
+    
+    <!-- 今日歷程 -->
+    {% if history %}
+    <div class="bg-white rounded-xl shadow overflow-hidden">
+        <div class="px-4 py-3 bg-gray-50 border-b font-bold text-gray-700">
+            📜 今日歷程
+        </div>
+        <div class="divide-y max-h-64 overflow-y-auto">
+            {% for h in history %}
+            <div class="px-4 py-3 flex justify-between items-center">
+                <div>
+                    <span class="text-sm">
+                        {% if h.action == 'arrive' %}📍 到達
+                        {% elif h.action == 'start' %}🔬 開始檢查
+                        {% elif h.action == 'complete' %}✅ 完成
+                        {% elif h.action == 'assign' %}📋 指派
+                        {% else %}{{ h.action }}
+                        {% endif %}
+                    </span>
+                    <span class="text-gray-500 text-sm ml-2">{{ h.location or '' }}</span>
+                </div>
+                <span class="text-xs text-gray-400">
+                    {{ h.timestamp.strftime('%H:%M') }}
+                </span>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
 </div>
 
 {% else %}
-<!-- 目前沒有負責的病人 -->
-<div class="bg-white rounded-xl shadow p-12 text-center">
-    <div class="text-6xl mb-4">📭</div>
-    <h2 class="text-xl font-bold text-gray-600 mb-2">目前沒有負責的病人</h2>
+<!-- 無指派病人 -->
+<div class="max-w-md mx-auto text-center py-12">
+    <div class="text-6xl mb-4">🧘</div>
+    <h2 class="text-xl font-bold text-gray-700 mb-2">目前沒有指派的病人</h2>
     <p class="text-gray-500">請等待調度員指派病人給您</p>
+    <p class="text-sm text-gray-400 mt-4">頁面會自動更新</p>
+    
+    <div class="mt-8" hx-get="/coordinator" hx-trigger="every 5s" hx-swap="outerHTML">
+        <!-- 自動刷新 -->
+    </div>
 </div>
 {% endif %}
 
-{% endblock %}
-
-{% block scripts %}
-<script>
-// 頁面自動刷新（每 30 秒）
-setTimeout(function() {
-    location.reload();
-}, 30000);
-</script>
 {% endblock %}

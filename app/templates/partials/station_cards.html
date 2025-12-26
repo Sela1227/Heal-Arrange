@@ -1,37 +1,24 @@
-<div class="bg-white rounded-xl shadow p-4">
-    <div class="font-bold text-gray-700 mb-3">🔬 檢查站狀態</div>
-    <div class="space-y-3">
-        {% for exam_code, station in station_summary.items() %}
-        <div class="border rounded-lg p-3 {% if broken_locations and exam_code in broken_locations %}border-red-300 bg-red-50{% else %}hover:bg-gray-50{% endif %}">
-            <div class="flex justify-between items-center">
-                <div>
-                    <div class="font-medium">
-                        {{ exam_code }}
-                        {% if broken_locations and exam_code in broken_locations %}
-                        <span class="text-red-500 text-xs">🔴 故障</span>
-                        {% endif %}
-                    </div>
-                    <div class="text-sm text-gray-500">{{ station.exam.name if station.exam else '' }}</div>
-                </div>
-                <div class="text-right">
-                    {% if station.in_exam > 0 %}
-                    <div class="text-red-600 font-bold">🔬 {{ station.in_exam }}</div>
-                    {% endif %}
-                    {% if station.waiting > 0 %}
-                    <div class="text-yellow-600">⏳ {{ station.waiting }}</div>
-                    {% endif %}
-                    {% if station.pending > 0 %}
-                    <div class="text-gray-400 text-sm">待來 {{ station.pending }}</div>
-                    {% endif %}
-                </div>
-            </div>
+<!-- 檢查站狀態卡片 -->
+<div class="grid grid-cols-2 gap-3">
+    {% for exam_code, station in station_summary.items() %}
+    <div class="p-3 rounded-lg border {% if exam_code in broken_locations %}border-red-300 bg-red-50{% else %}bg-white{% endif %}">
+        <div class="flex justify-between items-start mb-2">
+            <span class="font-bold text-sm">{{ exam_code }}</span>
+            {% if exam_code in broken_locations %}
+            <span class="text-red-500 text-xs">🔴 故障</span>
+            {% endif %}
         </div>
-        {% endfor %}
-        
-        {% if not station_summary %}
-        <div class="text-center text-gray-400 py-4">
-            尚無檢查站資料
+        <div class="text-xs text-gray-500">{{ station.exam.name if station.exam else '' }}</div>
+        <div class="mt-2 flex justify-between text-xs">
+            <span class="text-yellow-600">⏳ {{ station.waiting }}</span>
+            <span class="text-red-600">🔬 {{ station.in_exam }}</span>
         </div>
-        {% endif %}
     </div>
+    {% endfor %}
 </div>
+
+{% if not station_summary %}
+<div class="text-center text-gray-400 py-4 text-sm">
+    尚無檢查站資料
+</div>
+{% endif %}

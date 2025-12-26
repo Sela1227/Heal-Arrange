@@ -3,23 +3,23 @@
 {% block title %}調度台 - 高檢病人動態系統{% endblock %}
 
 {% block content %}
-<div class="mb-4 flex justify-between items-center">
+<div class="mb-6 flex justify-between items-center">
     <div>
         <h1 class="text-2xl font-bold text-gray-800">📊 調度台</h1>
-        <p class="text-gray-500">{{ today.strftime('%Y年%m月%d日') }}</p>
+        <p class="text-gray-500">{{ today }} | 共 {{ stats.total }} 位病人</p>
     </div>
     <div class="flex items-center space-x-4">
-        <!-- 統計 -->
-        <div class="flex space-x-2 text-sm">
-            <span class="px-2 py-1 bg-blue-100 text-blue-700 rounded">總計 {{ stats.total }}</span>
-            <span class="px-2 py-1 bg-green-100 text-green-700 rounded">完成 {{ stats.completed }}</span>
-            <span class="px-2 py-1 bg-yellow-100 text-yellow-700 rounded">進行 {{ stats.in_progress }}</span>
-            <span class="px-2 py-1 bg-gray-100 text-gray-600 rounded">未開始 {{ stats.not_started }}</span>
+        <div class="text-sm">
+            <span class="text-green-600">✅ {{ stats.completed }}</span>
+            <span class="text-gray-400 mx-1">|</span>
+            <span class="text-blue-600">🔄 {{ stats.in_progress }}</span>
+            <span class="text-gray-400 mx-1">|</span>
+            <span class="text-gray-500">⏳ {{ stats.not_started }}</span>
         </div>
     </div>
 </div>
 
-<!-- 故障警示（HTMX 即時更新） -->
+<!-- 故障設備警示 -->
 <div id="broken-alert"
      hx-get="/dispatcher/api/broken-equipment"
      hx-trigger="every 5s"
@@ -27,113 +27,97 @@
     {% include "partials/broken_alert.html" %}
 </div>
 
-<!-- 設備故障回報 -->
-<div class="bg-white rounded-xl shadow p-4 mb-4">
-    <form action="/dispatcher/report-equipment-failure" method="POST" class="flex items-center gap-4">
-        <span class="text-gray-600">⚠️ 設備故障回報：</span>
-        <select name="equipment_id" required class="border rounded-lg px-3 py-2">
-            <option value="">選擇設備</option>
-            {% for eq in all_equipment %}
-            <option value="{{ eq.id }}">{{ eq.name }} ({{ eq.location }})</option>
-            {% endfor %}
-        </select>
-        <input type="text" name="description" placeholder="故障描述（選填）" 
-               class="border rounded-lg px-3 py-2 flex-1">
-        <button type="submit" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg">
-            回報故障
-        </button>
-    </form>
-</div>
-
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
     <!-- 左側：病人列表 -->
     <div class="lg:col-span-2">
         <div class="bg-white rounded-xl shadow overflow-hidden">
-            <div class="px-4 py-3 bg-gray-50 border-b font-bold text-gray-700 flex justify-between items-center">
-                <span>📋 今日病人列表</span>
-                <span class="text-sm font-normal text-gray-500">共 {{ patient_list|length }} 人</span>
+            <div class="px-4 py-3 bg-gray-50 border-b flex justify-between items-center">
+                <span class="font-bold text-gray-700">📋 今日病人</span>
+                <span class="text-sm text-gray-500">每 5 秒自動更新</span>
             </div>
             
             <div id="patient-table"
-                 class="overflow-x-auto max-h-[600px] overflow-y-auto"
                  hx-get="/dispatcher/api/patients"
                  hx-trigger="every 5s"
-                 hx-swap="innerHTML">
+                 hx-swap="innerHTML"
+                 class="overflow-x-auto">
                 {% include "partials/patient_table.html" %}
             </div>
         </div>
     </div>
     
-    <!-- 右側：檢查站狀態 -->
-    <div>
-        <div class="bg-white rounded-xl shadow overflow-hidden">
+    <!-- 右側：檢查站狀態 + 設備回報 -->
+    <div class="space-y-6">
+        <!-- 檢查站狀態 -->
+        <div class="bg-white rounded-xl shadow">
             <div class="px-4 py-3 bg-gray-50 border-b font-bold text-gray-700">
                 🏥 檢查站狀態
             </div>
-            
             <div id="station-cards"
-                 class="p-4 space-y-3 max-h-[600px] overflow-y-auto"
                  hx-get="/dispatcher/api/stations"
                  hx-trigger="every 5s"
-                 hx-swap="innerHTML">
+                 hx-swap="innerHTML"
+                 class="p-4">
                 {% include "partials/station_cards.html" %}
             </div>
         </div>
         
-        <!-- 專員狀態（原個管師狀態） -->
-        <div class="bg-white rounded-xl shadow overflow-hidden mt-4">
+        <!-- 設備故障回報 -->
+        <div class="bg-white rounded-xl shadow p-4">
+            <h3 class="font-bold text-gray-700 mb-3">🔧 設備故障回報</h3>
+            <form action="/dispatcher/report-equipment-failure" method="POST">
+                <div class="space-y-3">
+                    <select name="equipment_id" required
+                            class="w-full border rounded-lg px-3 py-2 text-sm">
+                        <option value="">選擇設備</option>
+                        {% for eq in all_equipment %}
+                        <option value="{{ eq.id }}">
+                            {{ eq.name }} ({{ eq.location }})
+                            {% if eq.status == 'broken' %}⚠️{% endif %}
+                        </option>
+                        {% endfor %}
+                    </select>
+                    <input type="text" name="description" placeholder="故障描述（選填）"
+                           class="w-full border rounded-lg px-3 py-2 text-sm">
+                    <button type="submit"
+                            class="w-full bg-red-500 hover:bg-red-600 text-white py-2 rounded-lg text-sm font-medium">
+                        🚨 回報故障
+                    </button>
+                </div>
+            </form>
+        </div>
+        
+        <!-- 專員狀態 -->
+        <div class="bg-white rounded-xl shadow">
             <div class="px-4 py-3 bg-gray-50 border-b font-bold text-gray-700">
                 👤 專員狀態
             </div>
-            <div class="divide-y max-h-64 overflow-y-auto">
+            <div class="divide-y">
                 {% for coord in coordinators %}
-                <div class="px-4 py-2 flex items-center justify-between">
-                    <div class="flex items-center">
-                        {% if coord.picture_url %}
-                        <img src="{{ coord.picture_url }}" alt="" class="w-8 h-8 rounded-full mr-2">
-                        {% else %}
-                        <div class="w-8 h-8 rounded-full bg-green-100 mr-2 flex items-center justify-center text-green-600">
-                            👤
-                        </div>
-                        {% endif %}
-                        <span>{{ coord.display_name }}</span>
-                    </div>
+                <div class="px-4 py-3 flex justify-between items-center">
+                    <span>{{ coord.display_name }}</span>
                     <span class="text-xs text-gray-400">
                         {% set has_patient = false %}
                         {% for info in patient_list %}
                             {% if info.coordinator and info.coordinator.id == coord.id %}
                                 {% set has_patient = true %}
+                                <span class="text-green-600">{{ info.patient.name }}</span>
                             {% endif %}
                         {% endfor %}
-                        {% if has_patient %}
-                        <span class="px-2 py-1 bg-green-100 text-green-700 rounded">服務中</span>
-                        {% else %}
-                        <span class="px-2 py-1 bg-gray-100 text-gray-500 rounded">空閒</span>
+                        {% if not has_patient %}
+                        <span class="text-gray-400">空閒</span>
                         {% endif %}
                     </span>
                 </div>
                 {% endfor %}
                 
                 {% if not coordinators %}
-                <div class="px-4 py-8 text-center text-gray-400">
-                    尚無專員帳號
+                <div class="px-4 py-6 text-center text-gray-400 text-sm">
+                    尚無專員
                 </div>
                 {% endif %}
             </div>
         </div>
     </div>
 </div>
-{% endblock %}
-
-{% block scripts %}
-<script>
-// HTMX 請求時添加 loading 效果
-document.body.addEventListener('htmx:beforeRequest', function(evt) {
-    evt.detail.elt.classList.add('loading');
-});
-
-document.body.addEventListener('htmx:afterRequest', function(evt) {
-    evt.detail.elt.classList.remove('loading');
-});
-</script>
 {% endblock %}

@@ -8,36 +8,13 @@
     <a href="/admin" class="text-blue-500 hover:underline">← 返回管理後台</a>
 </div>
 
-<!-- 角色說明 -->
-<div class="bg-blue-50 rounded-xl p-4 mb-6">
-    <h3 class="font-bold text-blue-800 mb-2">角色說明</h3>
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-        <div class="flex items-center">
-            <span class="px-2 py-1 bg-red-100 text-red-700 rounded mr-2">admin</span>
-            <span class="text-gray-600">管理員 - 全部權限</span>
-        </div>
-        <div class="flex items-center">
-            <span class="px-2 py-1 bg-blue-100 text-blue-700 rounded mr-2">dispatcher</span>
-            <span class="text-gray-600">調度員 - 指派病人</span>
-        </div>
-        <div class="flex items-center">
-            <span class="px-2 py-1 bg-green-100 text-green-700 rounded mr-2">coordinator</span>
-            <span class="text-gray-600">專員 - 陪同病人</span>
-        </div>
-        <div class="flex items-center">
-            <span class="px-2 py-1 bg-yellow-100 text-yellow-700 rounded mr-2">pending</span>
-            <span class="text-gray-600">待審核</span>
-        </div>
-    </div>
-</div>
-
 <!-- 用戶列表 -->
 <div class="bg-white rounded-xl shadow overflow-hidden">
     <table class="w-full">
         <thead class="bg-gray-50">
             <tr>
-                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">用戶</th>
-                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">LINE ID</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">頭像</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">名稱</th>
                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">角色</th>
                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">狀態</th>
                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">註冊時間</th>
@@ -46,82 +23,57 @@
         </thead>
         <tbody class="divide-y divide-gray-200">
             {% for u in users %}
-            <tr class="hover:bg-gray-50 {% if not u.is_active %}opacity-50{% endif %}">
-                <!-- 用戶資訊 -->
+            <tr class="hover:bg-gray-50">
                 <td class="px-4 py-3">
-                    <div class="flex items-center">
-                        {% if u.picture_url %}
-                        <img src="{{ u.picture_url }}" alt="" class="w-10 h-10 rounded-full mr-3">
-                        {% else %}
-                        <div class="w-10 h-10 rounded-full bg-gray-200 mr-3 flex items-center justify-center">
-                            <span class="text-gray-500">👤</span>
-                        </div>
-                        {% endif %}
-                        <div>
-                            <div class="font-medium">{{ u.display_name or '未設定' }}</div>
-                            <div class="text-xs text-gray-400">ID: {{ u.id }}</div>
-                        </div>
+                    {% if u.picture_url %}
+                    <img src="{{ u.picture_url }}" alt="" class="w-10 h-10 rounded-full">
+                    {% else %}
+                    <div class="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center">
+                        👤
                     </div>
+                    {% endif %}
                 </td>
-                
-                <!-- LINE ID -->
-                <td class="px-4 py-3 text-gray-500 text-xs font-mono">
-                    {{ u.line_user_id[:20] }}...
+                <td class="px-4 py-3 font-medium">
+                    {{ u.display_name or '未知' }}
+                    {% if u.id == user.id %}
+                    <span class="text-xs text-blue-500">(你)</span>
+                    {% endif %}
                 </td>
-                
-                <!-- 角色 -->
                 <td class="px-4 py-3">
-                    <form action="/admin/users/{{ u.id }}/role" method="POST">
-                        <select name="role" 
-                                onchange="this.form.submit()"
-                                class="border rounded px-2 py-1 text-sm
-                                       {% if u.role == 'admin' %}bg-red-50 text-red-700 border-red-200
-                                       {% elif u.role == 'dispatcher' %}bg-blue-50 text-blue-700 border-blue-200
-                                       {% elif u.role == 'coordinator' %}bg-green-50 text-green-700 border-green-200
-                                       {% elif u.role == 'pending' %}bg-yellow-50 text-yellow-700 border-yellow-200
-                                       {% endif %}"
+                    <form action="/admin/users/{{ u.id }}/role" method="POST" class="inline">
+                        <select name="role" onchange="this.form.submit()" 
+                                class="border rounded px-2 py-1 text-sm"
                                 {% if u.id == user.id %}disabled{% endif %}>
-                            <option value="admin" {% if u.role == 'admin' %}selected{% endif %}>管理員</option>
-                            <option value="dispatcher" {% if u.role == 'dispatcher' %}selected{% endif %}>調度員</option>
-                            <option value="coordinator" {% if u.role == 'coordinator' %}selected{% endif %}>專員</option>
                             <option value="pending" {% if u.role == 'pending' %}selected{% endif %}>待審核</option>
+                            <option value="coordinator" {% if u.role == 'coordinator' %}selected{% endif %}>專員</option>
+                            <option value="dispatcher" {% if u.role == 'dispatcher' %}selected{% endif %}>調度員</option>
+                            <option value="admin" {% if u.role == 'admin' %}selected{% endif %}>管理員</option>
                         </select>
                     </form>
                 </td>
-                
-                <!-- 狀態 -->
                 <td class="px-4 py-3">
                     {% if u.is_active %}
                     <span class="px-2 py-1 bg-green-100 text-green-700 rounded text-xs">啟用</span>
                     {% else %}
-                    <span class="px-2 py-1 bg-gray-100 text-gray-500 rounded text-xs">停用</span>
+                    <span class="px-2 py-1 bg-red-100 text-red-700 rounded text-xs">停用</span>
                     {% endif %}
                 </td>
-                
-                <!-- 註冊時間 -->
                 <td class="px-4 py-3 text-gray-500 text-sm">
                     {{ u.created_at.strftime('%Y-%m-%d %H:%M') if u.created_at else '-' }}
                 </td>
-                
-                <!-- 操作 -->
                 <td class="px-4 py-3">
                     {% if u.id != user.id %}
                     <form action="/admin/users/{{ u.id }}/toggle" method="POST" class="inline">
                         {% if u.is_active %}
-                        <button type="submit" 
-                                class="text-red-500 hover:text-red-700 text-sm"
-                                onclick="return confirm('確定要停用此帳號？')">
-                            停用
+                        <button type="submit" class="text-red-500 hover:text-red-700 text-sm">
+                            🚫 停用
                         </button>
                         {% else %}
-                        <button type="submit" 
-                                class="text-green-500 hover:text-green-700 text-sm">
-                            啟用
+                        <button type="submit" class="text-green-500 hover:text-green-700 text-sm">
+                            ✅ 啟用
                         </button>
                         {% endif %}
                     </form>
-                    {% else %}
-                    <span class="text-gray-400 text-sm">（自己）</span>
                     {% endif %}
                 </td>
             </tr>
@@ -130,28 +82,26 @@
     </table>
 </div>
 
-<!-- 統計 -->
-<div class="mt-6 grid grid-cols-2 md:grid-cols-4 gap-4">
-    {% set admin_count = users|selectattr('role', 'equalto', 'admin')|list|length %}
-    {% set dispatcher_count = users|selectattr('role', 'equalto', 'dispatcher')|list|length %}
-    {% set coordinator_count = users|selectattr('role', 'equalto', 'coordinator')|list|length %}
-    {% set pending_count = users|selectattr('role', 'equalto', 'pending')|list|length %}
-    
-    <div class="bg-red-50 rounded-lg p-4 text-center">
-        <div class="text-2xl font-bold text-red-600">{{ admin_count }}</div>
-        <div class="text-sm text-red-500">管理員</div>
-    </div>
-    <div class="bg-blue-50 rounded-lg p-4 text-center">
-        <div class="text-2xl font-bold text-blue-600">{{ dispatcher_count }}</div>
-        <div class="text-sm text-blue-500">調度員</div>
-    </div>
-    <div class="bg-green-50 rounded-lg p-4 text-center">
-        <div class="text-2xl font-bold text-green-600">{{ coordinator_count }}</div>
-        <div class="text-sm text-green-500">專員</div>
-    </div>
-    <div class="bg-yellow-50 rounded-lg p-4 text-center">
-        <div class="text-2xl font-bold text-yellow-600">{{ pending_count }}</div>
-        <div class="text-sm text-yellow-500">待審核</div>
+<!-- 角色說明 -->
+<div class="mt-6 bg-gray-50 rounded-xl p-6">
+    <h3 class="font-bold text-gray-700 mb-4">📋 角色說明</h3>
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm">
+        <div class="bg-white p-4 rounded-lg">
+            <span class="font-bold text-yellow-600">⏳ 待審核</span>
+            <p class="text-gray-500 mt-1">新註冊用戶，無法使用系統</p>
+        </div>
+        <div class="bg-white p-4 rounded-lg">
+            <span class="font-bold text-green-600">👤 專員</span>
+            <p class="text-gray-500 mt-1">陪同病人、回報狀態</p>
+        </div>
+        <div class="bg-white p-4 rounded-lg">
+            <span class="font-bold text-blue-600">📊 調度員</span>
+            <p class="text-gray-500 mt-1">病人指派、即時監控</p>
+        </div>
+        <div class="bg-white p-4 rounded-lg">
+            <span class="font-bold text-red-600">🛠️ 管理員</span>
+            <p class="text-gray-500 mt-1">系統設定、帳號管理</p>
+        </div>
     </div>
 </div>
 {% endblock %}

@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 """
 統計服務 - 報表與數據分析
-（已更新：個管師 → 專員）
+修正：duration_minutes → duration_min
+更新：個管師 → 專員
 """
 
 from datetime import date, datetime, timedelta
@@ -117,6 +118,9 @@ def get_station_statistics(db: Session, target_date: date = None) -> List[Dict]:
         if equipment:
             equipment_status = equipment.status
         
+        # 修正：使用 duration_min 而非 duration_minutes
+        duration = getattr(exam, 'duration_min', None) or getattr(exam, 'duration_minutes', 15)
+        
         stats.append({
             "exam_code": exam.exam_code,
             "exam_name": exam.name,
@@ -124,7 +128,7 @@ def get_station_statistics(db: Session, target_date: date = None) -> List[Dict]:
             "waiting": waiting_count,
             "in_exam": in_exam_count,
             "equipment_status": equipment_status,
-            "duration_minutes": exam.duration_minutes,
+            "duration_minutes": duration,  # 保持 API 輸出一致
         })
     
     return stats
@@ -219,10 +223,10 @@ def get_history_records(
     
     # 取得相關資料
     patient_ids = list(set(r.patient_id for r in records))
-    patients = {p.id: p for p in db.query(Patient).filter(Patient.id.in_(patient_ids)).all()}
+    patients = {p.id: p for p in db.query(Patient).filter(Patient.id.in_(patient_ids)).all()} if patient_ids else {}
     
     operator_ids = list(set(r.operator_id for r in records if r.operator_id))
-    operators = {u.id: u for u in db.query(User).filter(User.id.in_(operator_ids)).all()}
+    operators = {u.id: u for u in db.query(User).filter(User.id.in_(operator_ids)).all()} if operator_ids else {}
     
     result = []
     for r in records:

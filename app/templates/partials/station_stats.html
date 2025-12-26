@@ -1,54 +1,37 @@
-<div class="px-4 py-3 bg-gray-50 border-b">
-    <span class="font-bold text-gray-700">🔬 檢查站統計</span>
+<!-- 檢查站統計 -->
+<div class="px-4 py-3 bg-gray-50 border-b font-bold text-gray-700">
+    🏥 檢查站統計
 </div>
-<div class="p-4">
+<div class="overflow-x-auto">
     <table class="w-full text-sm">
-        <thead>
-            <tr class="text-left text-gray-500 border-b">
-                <th class="pb-2">檢查站</th>
-                <th class="pb-2 text-center">完成</th>
-                <th class="pb-2 text-center">等候</th>
-                <th class="pb-2 text-center">檢查中</th>
-                <th class="pb-2 text-center">設備</th>
+        <thead class="bg-gray-50">
+            <tr>
+                <th class="px-4 py-3 text-left">檢查站</th>
+                <th class="px-4 py-3 text-center">完成</th>
+                <th class="px-4 py-3 text-center">等候</th>
+                <th class="px-4 py-3 text-center">檢查中</th>
+                <th class="px-4 py-3 text-center">設備</th>
             </tr>
         </thead>
         <tbody class="divide-y">
-            {% for station in station_stats %}
+            {% for stat in station_stats %}
             <tr class="hover:bg-gray-50">
-                <td class="py-3">
-                    <div class="font-medium">{{ station.exam_code }}</div>
-                    <div class="text-xs text-gray-400">{{ station.exam_name }}</div>
+                <td class="px-4 py-3">
+                    <span class="font-medium">{{ stat.exam_code }}</span>
+                    <span class="text-gray-500 text-xs ml-1">{{ stat.exam_name }}</span>
                 </td>
-                <td class="py-3 text-center">
-                    <span class="px-2 py-1 bg-green-100 text-green-700 rounded text-xs font-medium">
-                        {{ station.completed }}
-                    </span>
-                </td>
-                <td class="py-3 text-center">
-                    {% if station.waiting > 0 %}
-                    <span class="px-2 py-1 bg-yellow-100 text-yellow-700 rounded text-xs font-medium">
-                        {{ station.waiting }}
-                    </span>
-                    {% else %}
-                    <span class="text-gray-300">-</span>
-                    {% endif %}
-                </td>
-                <td class="py-3 text-center">
-                    {% if station.in_exam > 0 %}
-                    <span class="px-2 py-1 bg-red-100 text-red-700 rounded text-xs font-medium">
-                        {{ station.in_exam }}
-                    </span>
-                    {% else %}
-                    <span class="text-gray-300">-</span>
-                    {% endif %}
-                </td>
-                <td class="py-3 text-center">
-                    {% if station.equipment_status == 'broken' %}
-                    <span class="text-red-500">🔴</span>
-                    {% elif station.equipment_status == 'warning' %}
-                    <span class="text-yellow-500">🟡</span>
-                    {% else %}
+                <td class="px-4 py-3 text-center text-green-600">{{ stat.completed }}</td>
+                <td class="px-4 py-3 text-center text-yellow-600">{{ stat.waiting }}</td>
+                <td class="px-4 py-3 text-center text-red-600">{{ stat.in_exam }}</td>
+                <td class="px-4 py-3 text-center">
+                    {% if stat.equipment_status == 'normal' %}
                     <span class="text-green-500">🟢</span>
+                    {% elif stat.equipment_status == 'warning' %}
+                    <span class="text-yellow-500">🟡</span>
+                    {% elif stat.equipment_status == 'broken' %}
+                    <span class="text-red-500">🔴</span>
+                    {% else %}
+                    <span class="text-gray-400">-</span>
                     {% endif %}
                 </td>
             </tr>
@@ -56,8 +39,8 @@
             
             {% if not station_stats %}
             <tr>
-                <td colspan="5" class="py-8 text-center text-gray-400">
-                    尚無檢查站資料
+                <td colspan="5" class="px-4 py-8 text-center text-gray-400">
+                    尚無資料
                 </td>
             </tr>
             {% endif %}

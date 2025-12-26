@@ -1,136 +1,113 @@
-# Phase 9 快速修正
+# 🔧 完整修正包 v3
 
-## 🔴 問題
-```
-SessionMiddleware must be installed to access request.session
-```
+## 📋 修正內容
 
-## ✅ 原因
-專案使用 JWT Cookie 認證，而非 Starlette SessionMiddleware。
-模擬服務需要改用 Cookie 方式儲存狀態。
+### 1. 報表錯誤修正
+**錯誤**：`'Exam' object has no attribute 'duration_minutes'`
 
----
+**原因**：資料庫欄位名稱是 `duration_min`，但程式碼使用 `duration_minutes`
 
-## 📁 修正檔案
+**修正**：`stats.py` 第 127 行改用 `getattr()` 兼容兩種欄位名稱
 
-### 1. 替換 `app/services/impersonate.py`
-用 ZIP 中的 `impersonate.py` 替換
-
-### 2. 在 `app/services/__init__.py` 加入：
-```python
-from . import impersonate
-```
-
-### 3. 在現有 `app/routers/admin.py` 結尾加入以下程式碼：
-
-```python
-# ======================
-# 角色模擬功能
-# ======================
-
-@router.get("/impersonate", response_class=HTMLResponse)
-async def admin_impersonate(
-    request: Request,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_admin),
-):
-    """角色模擬選擇頁面"""
-    from ..services import impersonate as impersonate_service
-    
-    # 取得可模擬的用戶
-    dispatchers = impersonate_service.get_impersonatable_users(db, "dispatcher")
-    coordinators = impersonate_service.get_impersonatable_users(db, "coordinator")
-    patients = impersonate_service.get_impersonatable_patients(db)
-    
-    # 目前模擬狀態
-    status = impersonate_service.get_impersonation_status(request)
-    
-    return templates.TemplateResponse("admin/impersonate.html", {
-        "request": request,
-        "user": current_user,
-        "dispatchers": dispatchers,
-        "coordinators": coordinators,
-        "patients": patients,
-        "impersonate_status": status,
-        "today": date.today(),
-    })
-
-
-@router.post("/impersonate/start")
-async def start_impersonate(
-    request: Request,
-    role: str = Form(...),
-    user_id: int = Form(None),
-    patient_id: int = Form(None),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_admin),
-):
-    """開始角色模擬"""
-    from ..services import impersonate as impersonate_service
-    
-    # 驗證目標角色
-    valid_roles = ["dispatcher", "coordinator", "patient"]
-    if role not in valid_roles:
-        return RedirectResponse(url="/admin/impersonate?error=invalid_role", status_code=302)
-    
-    # 決定跳轉 URL
-    redirect_urls = {
-        "dispatcher": "/dispatcher",
-        "coordinator": "/coordinator",
-        "patient": "/patient/dashboard",
-    }
-    
-    redirect_url = redirect_urls.get(role, "/admin")
-    
-    # 建立回應並設定 Cookie
-    response = RedirectResponse(url=redirect_url, status_code=302)
-    
-    impersonate_service.set_impersonate_cookie(
-        response=response,
-        admin_id=current_user.id,
-        target_role=role,
-        target_user_id=user_id,
-        target_patient_id=patient_id,
-    )
-    
-    return response
-
-
-@router.post("/impersonate/end")
-async def end_impersonate(
-    request: Request,
-    db: Session = Depends(get_db),
-):
-    """結束角色模擬"""
-    from ..services import impersonate as impersonate_service
-    
-    # 建立回應並清除 Cookie
-    response = RedirectResponse(url="/admin", status_code=302)
-    impersonate_service.clear_impersonate_cookie(response)
-    
-    return response
-
-
-@router.get("/impersonate/status")
-async def get_impersonate_status_api(
-    request: Request,
-    db: Session = Depends(get_db),
-):
-    """取得模擬狀態 (API)"""
-    from ..services import impersonate as impersonate_service
-    
-    return impersonate_service.get_impersonation_status(request)
-```
-
-### 4. 複製模板檔案
-- `templates/admin/impersonate.html`
-- `templates/partials/impersonate_bar.html`
+### 2. 個管師 → 專員
+全系統統一將「個管師」改為「專員」：
+- 首頁角色說明
+- 導覽列角色標籤
+- 管理後台角色說明
+- 帳號管理下拉選單
+- 報表統計標題
+- 調度員主控台
+- 專員頁面標題
+- 病人列表表頭
+- CSV 匯出欄位
 
 ---
 
-## 🚀 部署
-```bash
-git add .
-git commit -m "Fix: 修正角色模擬使用 Cookie"
-git push
+## 📁 檔案清單
+
 ```
+fix-all/
+├── README.md                           # 本說明文檔
+├── app/
+│   ├── services/
+│   │   └── stats.py                    # ✅ 修正 duration_min 欄位
+│   │
+│   └── templates/
+│       ├── base.html                   # ✅ 角色標籤改為專員
+│       ├── home.html                   # ✅ 角色說明改為專員
+│       │
+│       ├── admin/
+│       │   ├── index.html              # ✅ 角色卡片
+│       │   ├── users.html              # ✅ 角色選單改為專員
+│       │   └── reports.html            # ✅ 專員統計標題
+│       │
+│       ├── dispatcher/
+│       │   └── dashboard.html          # ✅ 專員狀態區塊
+│       │
+│       ├── coordinator/
+│       │   └── my_patient.html         # ✅ 頁面標題改為專員
+│       │
+│       └── partials/
+│           ├── patient_table.html      # ✅ 專員欄位
+│           ├── coordinator_stats.html  # ✅ 專員工作統計
+│           ├── station_stats.html      # 檢查站統計
+│           ├── station_cards.html      # 檢查站卡片
+│           ├── report_summary.html     # 報表摘要
+│           ├── broken_alert.html       # 故障警示
+│           └── notifications.html      # 通知
+```
+
+---
+
+## 🚀 部署步驟
+
+### 方法一：完整替換（推薦）
+
+1. 解壓縮 `fix-all-v3.zip`
+
+2. 替換以下檔案：
+   - `app/services/stats.py`
+   - `app/templates/` 整個資料夾
+
+3. 部署：
+   ```bash
+   git add .
+   git commit -m "Fix: 報表欄位修正 + 個管師改為專員"
+   git push
+   ```
+
+### 方法二：只修正報表錯誤
+
+如果只想修正報表錯誤，在 `stats.py` 第 127 行：
+
+**原本**：
+```python
+"duration_minutes": exam.duration_minutes,
+```
+
+**改為**：
+```python
+duration = getattr(exam, 'duration_min', None) or getattr(exam, 'duration_minutes', 15)
+
+stats.append({
+    ...
+    "duration_minutes": duration,
+    ...
+})
+```
+
+---
+
+## ⚠️ 注意事項
+
+1. 這個修正包包含所有必要的模板檔案
+2. 替換後請確認 Railway 部署成功
+3. 如果之前有自訂修改，請手動合併
+
+---
+
+## 📝 版本歷史
+
+- v1：原始 Phase 9 包（有 session 問題）
+- v2：修正 session → cookie
+- v3：修正報表欄位 + 個管師改為專員
