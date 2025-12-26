@@ -1,15 +1,27 @@
 # -*- coding: utf-8 -*-
 """
 角色模擬服務 - 管理員可切換視角查看其他角色畫面
+使用 Cookie 儲存模擬狀態（與專案的 JWT 認證方式一致）
 """
 
-from datetime import datetime, date
+import json
+import jwt
+from datetime import datetime, date, timedelta
 from typing import Optional, Dict, Any
 from sqlalchemy.orm import Session
 from starlette.requests import Request
+from starlette.responses import Response
 
+from ..config import settings
 from ..models.user import User, UserRole
 from ..models.patient import Patient
+
+
+# JWT 設定（與 auth.py 一致）
+JWT_SECRET = settings.SECRET_KEY
+JWT_ALGORITHM = "HS256"
+IMPERSONATE_COOKIE_NAME = "impersonate_token"
+IMPERSONATE_EXPIRATION_HOURS = 4  # 模擬 4 小時後過期
 
 
 # 角色顯示名稱對照（個管師 → 專員）
@@ -27,100 +39,38 @@ def get_role_display_name(role: str) -> str:
     return ROLE_DISPLAY_NAMES.get(role, role)
 
 
-def start_impersonation(
-    request: Request,
-    admin_user: User,
+def create_impersonate_token(
+    admin_id: int,
     target_role: str,
     target_user_id: int = None,
     target_patient_id: int = None,
-) -> Dict[str, Any]:
-    """
-    開始角色模擬
-    
-    Args:
-        request: HTTP 請求（用於存取 session）
-        admin_user: 原始管理員用戶
-        target_role: 目標角色 (dispatcher/coordinator/patient)
-        target_user_id: 目標用戶 ID（調度員/專員）
-        target_patient_id: 目標病人 ID（病人角色）
-    
-    Returns:
-        {"success": bool, "message": str, "redirect_url": str}
-    """
-    # 驗證管理員權限
-    if admin_user.role != UserRole.ADMIN.value:
-        return {
-            "success": False,
-            "message": "只有管理員可以使用角色模擬功能",
-            "redirect_url": None,
-        }
-    
-    # 驗證目標角色
-    valid_roles = ["dispatcher", "coordinator", "patient"]
-    if target_role not in valid_roles:
-        return {
-            "success": False,
-            "message": f"無效的角色：{target_role}",
-            "redirect_url": None,
-        }
-    
-    # 設定 session
-    request.session["impersonating"] = True
-    request.session["impersonate_role"] = target_role
-    request.session["impersonate_user_id"] = target_user_id
-    request.session["impersonate_patient_id"] = target_patient_id
-    request.session["original_admin_id"] = admin_user.id
-    request.session["impersonate_started_at"] = datetime.utcnow().isoformat()
-    
-    # 決定跳轉 URL
-    redirect_urls = {
-        "dispatcher": "/dispatcher",
-        "coordinator": "/coordinator",
-        "patient": "/patient/dashboard",
+) -> str:
+    """建立模擬 Token"""
+    payload = {
+        "admin_id": admin_id,
+        "role": target_role,
+        "user_id": target_user_id,
+        "patient_id": target_patient_id,
+        "started_at": datetime.utcnow().isoformat(),
+        "exp": datetime.utcnow() + timedelta(hours=IMPERSONATE_EXPIRATION_HOURS),
     }
-    
-    return {
-        "success": True,
-        "message": f"已開始模擬 {get_role_display_name(target_role)}",
-        "redirect_url": redirect_urls.get(target_role, "/"),
-    }
+    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 
-def end_impersonation(request: Request) -> Dict[str, Any]:
-    """
-    結束角色模擬
-    
-    Returns:
-        {"success": bool, "message": str}
-    """
-    if not request.session.get("impersonating"):
-        return {
-            "success": False,
-            "message": "目前沒有在模擬中",
-        }
-    
-    # 清除模擬相關 session
-    keys_to_remove = [
-        "impersonating",
-        "impersonate_role",
-        "impersonate_user_id",
-        "impersonate_patient_id",
-        "original_admin_id",
-        "impersonate_started_at",
-    ]
-    
-    for key in keys_to_remove:
-        request.session.pop(key, None)
-    
-    return {
-        "success": True,
-        "message": "已結束模擬，返回管理員身份",
-    }
+def decode_impersonate_token(token: str) -> Optional[Dict]:
+    """解碼模擬 Token"""
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        return payload
+    except jwt.ExpiredSignatureError:
+        return None
+    except jwt.InvalidTokenError:
+        return None
 
 
 def get_impersonation_status(request: Request) -> Dict[str, Any]:
     """
-    取得目前模擬狀態
+    從 Cookie 取得目前模擬狀態
     
     Returns:
         {
@@ -130,9 +80,12 @@ def get_impersonation_status(request: Request) -> Dict[str, Any]:
             "user_id": int or None,
             "patient_id": int or None,
             "started_at": str or None,
+            "admin_id": int or None,
         }
     """
-    if not request.session.get("impersonating"):
+    token = request.cookies.get(IMPERSONATE_COOKIE_NAME)
+    
+    if not token:
         return {
             "is_impersonating": False,
             "role": None,
@@ -140,19 +93,62 @@ def get_impersonation_status(request: Request) -> Dict[str, Any]:
             "user_id": None,
             "patient_id": None,
             "started_at": None,
+            "admin_id": None,
         }
     
-    role = request.session.get("impersonate_role")
+    payload = decode_impersonate_token(token)
+    
+    if not payload:
+        return {
+            "is_impersonating": False,
+            "role": None,
+            "role_name": None,
+            "user_id": None,
+            "patient_id": None,
+            "started_at": None,
+            "admin_id": None,
+        }
+    
+    role = payload.get("role")
     
     return {
         "is_impersonating": True,
         "role": role,
         "role_name": get_role_display_name(role),
-        "user_id": request.session.get("impersonate_user_id"),
-        "patient_id": request.session.get("impersonate_patient_id"),
-        "started_at": request.session.get("impersonate_started_at"),
-        "original_admin_id": request.session.get("original_admin_id"),
+        "user_id": payload.get("user_id"),
+        "patient_id": payload.get("patient_id"),
+        "started_at": payload.get("started_at"),
+        "admin_id": payload.get("admin_id"),
     }
+
+
+def set_impersonate_cookie(
+    response: Response,
+    admin_id: int,
+    target_role: str,
+    target_user_id: int = None,
+    target_patient_id: int = None,
+) -> None:
+    """設定模擬 Cookie"""
+    token = create_impersonate_token(
+        admin_id=admin_id,
+        target_role=target_role,
+        target_user_id=target_user_id,
+        target_patient_id=target_patient_id,
+    )
+    
+    response.set_cookie(
+        key=IMPERSONATE_COOKIE_NAME,
+        value=token,
+        httponly=True,
+        max_age=IMPERSONATE_EXPIRATION_HOURS * 3600,
+        samesite="lax",
+    )
+
+
+def clear_impersonate_cookie(response: Response) -> None:
+    """清除模擬 Cookie"""
+    response.delete_cookie(key=IMPERSONATE_COOKIE_NAME)
 
 
 def get_effective_user(request: Request, db: Session) -> tuple:

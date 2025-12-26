@@ -1,29 +1,10 @@
-# Phase 9 快速修正
+# -*- coding: utf-8 -*-
+"""
+========================================
+角色模擬路由 - 請將以下程式碼加入現有 admin.py 的最後
+========================================
+"""
 
-## 🔴 問題
-```
-SessionMiddleware must be installed to access request.session
-```
-
-## ✅ 原因
-專案使用 JWT Cookie 認證，而非 Starlette SessionMiddleware。
-模擬服務需要改用 Cookie 方式儲存狀態。
-
----
-
-## 📁 修正檔案
-
-### 1. 替換 `app/services/impersonate.py`
-用 ZIP 中的 `impersonate.py` 替換
-
-### 2. 在 `app/services/__init__.py` 加入：
-```python
-from . import impersonate
-```
-
-### 3. 在現有 `app/routers/admin.py` 結尾加入以下程式碼：
-
-```python
 # ======================
 # 角色模擬功能
 # ======================
@@ -77,7 +58,7 @@ async def start_impersonate(
     redirect_urls = {
         "dispatcher": "/dispatcher",
         "coordinator": "/coordinator",
-        "patient": "/patient/dashboard",
+        "patient": "/patient/dashboard",  # Phase 8 完成後才能用
     }
     
     redirect_url = redirect_urls.get(role, "/admin")
@@ -120,17 +101,3 @@ async def get_impersonate_status_api(
     from ..services import impersonate as impersonate_service
     
     return impersonate_service.get_impersonation_status(request)
-```
-
-### 4. 複製模板檔案
-- `templates/admin/impersonate.html`
-- `templates/partials/impersonate_bar.html`
-
----
-
-## 🚀 部署
-```bash
-git add .
-git commit -m "Fix: 修正角色模擬使用 Cookie"
-git push
-```
