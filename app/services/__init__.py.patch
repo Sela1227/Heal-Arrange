@@ -1,0 +1,34 @@
+# -*- coding: utf-8 -*-
+"""
+服務層模組
+========================================
+請確認此文件包含 settings 和 impersonate 的 import
+========================================
+"""
+
+from . import auth
+from . import tracking
+from . import equipment
+from . import import_service
+from . import stats
+
+# ========================================
+# 【重要】請確認以下這兩行存在：
+# ========================================
+from . import impersonate
+from . import settings
+
+# Phase 6 新增（如果有的話）
+try:
+    from . import line_notify
+    from . import wait_time
+    from . import qrcode_service
+except ImportError:
+    pass
+
+# Phase 7 新增（如果有的話）
+try:
+    from . import pdf_report
+    from . import scheduler
+except ImportError:
+    pass

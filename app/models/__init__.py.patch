@@ -1,0 +1,19 @@
+# -*- coding: utf-8 -*-
+"""
+Models 模組
+========================================
+請確認此文件包含 settings 的 import
+========================================
+"""
+
+# 原有的 imports（保留現有內容）
+from .user import User, UserRole, get_role_display_name
+from .patient import Patient
+from .exam import Exam, DEFAULT_EXAMS
+from .equipment import Equipment, EquipmentLog, EquipmentStatus
+from .tracking import TrackingRecord, TrackingStatus
+
+# ========================================
+# 【重要】請確認以下這行存在：
+# ========================================
+from .settings import SystemSetting, DEFAULT_SETTINGS
