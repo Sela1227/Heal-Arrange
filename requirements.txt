@@ -26,3 +26,6 @@ reportlab==4.0.8
 # QR Code 生成
 qrcode[pil]==7.4.2
 pillow==10.2.0
+
+#FDF 環境變數
+pydantic-settings==2.1.0
