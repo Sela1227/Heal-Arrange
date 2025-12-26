@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-使用者模型 - 新增組長角色
+使用者模型 - 包含組長角色
 """
 
 from datetime import datetime
@@ -19,6 +19,11 @@ class UserRole(str, enum.Enum):
     PENDING = "pending"       # 待審核
 
 
+# 兼容舊版 - 別名
+Permission = UserRole
+UserStatus = UserRole
+
+
 # 角色顯示名稱
 ROLE_DISPLAY_NAMES = {
     "admin": "管理員",
@@ -27,6 +32,9 @@ ROLE_DISPLAY_NAMES = {
     "coordinator": "專員",
     "pending": "待審核",
 }
+
+# 所有權限列表（兼容舊版）
+ALL_PERMISSIONS = [r.value for r in UserRole]
 
 
 def get_role_display_name(role: str) -> str:
@@ -43,7 +51,7 @@ class User(Base):
     display_name = Column(String(100), nullable=True)
     picture_url = Column(Text, nullable=True)
     
-    role = Column(String(20), default=UserRole.LEADER.value)  # 預設為組長
+    role = Column(String(20), default=UserRole.LEADER.value)  # 預設組長（測試）
     is_active = Column(Boolean, default=True)
     
     created_at = Column(DateTime, default=datetime.utcnow)

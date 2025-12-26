@@ -9,3 +9,4 @@ from . import equipment
 from . import import_service
 from . import stats
 from . import impersonate
+from . import settings

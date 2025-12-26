@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 認證服務 - LINE Login + JWT
-新用戶預設為「組長」角色（測試階段）
+新用戶角色由系統設定決定
 """
 
 import httpx
@@ -99,7 +99,9 @@ async def get_line_profile(access_token: str) -> Dict:
 
 
 def get_or_create_user(db: Session, line_profile: Dict) -> User:
-    """取得或建立使用者（新用戶預設為組長）"""
+    """取得或建立使用者（新用戶角色由系統設定決定）"""
+    from ..services.settings import get_default_user_role
+    
     line_user_id = line_profile.get("userId")
     display_name = line_profile.get("displayName", "未知")
     picture_url = line_profile.get("pictureUrl")
@@ -117,13 +119,15 @@ def get_or_create_user(db: Session, line_profile: Dict) -> User:
         return user
     
     # ========================================
-    # 建立新使用者 - 預設為「組長」（測試階段）
+    # 建立新使用者 - 角色由系統設定決定
     # ========================================
+    default_role = get_default_user_role(db)
+    
     user = User(
         line_user_id=line_user_id,
         display_name=display_name,
         picture_url=picture_url,
-        role=UserRole.LEADER.value,  # 🔥 新用戶預設為組長
+        role=default_role,  # 使用系統設定的預設角色
         last_login=datetime.utcnow(),
     )
     db.add(user)

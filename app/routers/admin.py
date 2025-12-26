@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-管理後台路由 - 新增組長角色 + 角色模擬
+管理後台路由 - 包含系統設定
 """
 
 from datetime import date
@@ -17,6 +17,7 @@ from ..models.patient import Patient
 from ..models.exam import Exam, DEFAULT_EXAMS
 from ..models.equipment import Equipment, EquipmentLog, EquipmentStatus
 from ..services.auth import get_current_user
+from ..services import settings as settings_service
 
 router = APIRouter(prefix="/admin", tags=["管理後台"])
 templates = Jinja2Templates(directory="app/templates")
@@ -63,6 +64,53 @@ async def admin_index(
 
 
 # ======================
+# 系統設定
+# ======================
+
+@router.get("/settings", response_class=HTMLResponse)
+async def admin_settings(
+    request: Request,
+    saved: int = 0,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """系統設定頁面"""
+    all_settings = settings_service.get_all_settings(db)
+    default_role = settings_service.get_default_user_role(db)
+    
+    return templates.TemplateResponse("admin/settings.html", {
+        "request": request,
+        "user": current_user,
+        "settings": all_settings,
+        "default_role": default_role,
+        "saved": saved,
+        "roles": [
+            {"value": "pending", "label": "待審核"},
+            {"value": "coordinator", "label": "專員"},
+            {"value": "dispatcher", "label": "調度員"},
+            {"value": "leader", "label": "組長"},
+        ],
+    })
+
+
+@router.post("/settings/default-role")
+async def update_default_role(
+    request: Request,
+    default_role: str = Form(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """更新新用戶預設角色"""
+    valid_roles = ["pending", "coordinator", "dispatcher", "leader"]
+    if default_role not in valid_roles:
+        raise HTTPException(status_code=400, detail="無效的角色")
+    
+    settings_service.set_setting(db, "default_user_role", default_role, current_user.id)
+    
+    return RedirectResponse(url="/admin/settings?saved=1", status_code=302)
+
+
+# ======================
 # 帳號管理
 # ======================
 
@@ -74,12 +122,14 @@ async def admin_users(
 ):
     """帳號管理頁面"""
     users = db.query(User).order_by(User.created_at.desc()).all()
+    default_role = settings_service.get_default_user_role(db)
     
     return templates.TemplateResponse("admin/users.html", {
         "request": request,
         "user": current_user,
         "users": users,
         "roles": [r.value for r in UserRole],
+        "default_role": default_role,
     })
 
 
@@ -324,7 +374,6 @@ async def add_exam(
     existing = db.query(Exam).filter(Exam.exam_code == exam_code).first()
     if existing:
         existing.name = name
-        # 嘗試更新 duration_min 或 duration_minutes
         if hasattr(existing, 'duration_min'):
             existing.duration_min = duration_minutes
         if hasattr(existing, 'duration_minutes'):
@@ -336,7 +385,6 @@ async def add_exam(
             name=name,
             location=location,
         )
-        # 設定時間欄位
         if hasattr(exam, 'duration_min'):
             exam.duration_min = duration_minutes
         if hasattr(exam, 'duration_minutes'):
@@ -484,13 +532,11 @@ async def admin_impersonate(
     """角色模擬選擇頁面"""
     from ..services import impersonate as impersonate_service
     
-    # 取得可模擬的用戶（按角色分類）
     dispatchers = impersonate_service.get_impersonatable_users(db, "dispatcher")
     coordinators = impersonate_service.get_impersonatable_users(db, "coordinator")
     leaders = impersonate_service.get_impersonatable_users(db, "leader")
     patients = impersonate_service.get_impersonatable_patients(db)
     
-    # 目前模擬狀態
     status = impersonate_service.get_impersonation_status(request)
     
     return templates.TemplateResponse("admin/impersonate.html", {
@@ -517,7 +563,6 @@ async def start_impersonate(
     """開始角色模擬"""
     from ..services import impersonate as impersonate_service
     
-    # 呼叫服務開始模擬
     result = impersonate_service.start_impersonation(
         request=request,
         admin_id=current_user.id,
@@ -532,7 +577,6 @@ async def start_impersonate(
             status_code=302
         )
     
-    # 建立回應並設定 Cookie
     response = RedirectResponse(url=result["redirect_url"], status_code=302)
     impersonate_service.set_impersonate_cookie(response, result["token"])
     
@@ -547,7 +591,6 @@ async def end_impersonate(
     """結束角色模擬"""
     from ..services import impersonate as impersonate_service
     
-    # 建立回應並清除 Cookie
     response = RedirectResponse(url="/admin", status_code=302)
     impersonate_service.clear_impersonate_cookie(response)
     
