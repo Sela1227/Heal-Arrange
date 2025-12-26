@@ -41,6 +41,16 @@ app = FastAPI(
 
 
 # =====================
+# Health Check 端點
+# =====================
+
+@app.get("/health")
+async def health_check():
+    """健康檢查端點（Railway 用）"""
+    return {"status": "ok"}
+
+
+# =====================
 # 自定義異常處理 - 未登入自動跳轉
 # =====================
 
