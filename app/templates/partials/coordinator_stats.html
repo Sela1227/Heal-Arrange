@@ -1,31 +1,32 @@
-<div class="px-4 py-3 bg-gray-50 border-b">
-    <span class="font-bold text-gray-700">👥 個管師工作統計</span>
+<!-- 專員統計（原個管師統計） -->
+<div class="px-4 py-3 bg-gray-50 border-b font-bold text-gray-700">
+    👤 專員工作統計
 </div>
-<div class="p-4">
+
+<div class="overflow-x-auto">
     <table class="w-full text-sm">
-        <thead>
-            <tr class="text-left text-gray-500 border-b">
-                <th class="pb-2">個管師</th>
-                <th class="pb-2">目前負責</th>
-                <th class="pb-2 text-center">狀態</th>
-                <th class="pb-2 text-center">指派數</th>
-                <th class="pb-2 text-center">操作數</th>
+        <thead class="bg-gray-50">
+            <tr>
+                <th class="px-4 py-2 text-left">專員</th>
+                <th class="px-4 py-2 text-center">今日指派</th>
+                <th class="px-4 py-2 text-left">目前病人</th>
+                <th class="px-4 py-2 text-center">狀態</th>
+                <th class="px-4 py-2 text-center">操作次數</th>
             </tr>
         </thead>
         <tbody class="divide-y">
             {% for coord in coordinator_stats %}
             <tr class="hover:bg-gray-50">
-                <td class="py-3">
-                    <div class="font-medium">{{ coord.name }}</div>
-                </td>
-                <td class="py-3">
+                <td class="px-4 py-2 font-medium">{{ coord.name }}</td>
+                <td class="px-4 py-2 text-center">{{ coord.total_assignments }}</td>
+                <td class="px-4 py-2">
                     {% if coord.current_patient %}
-                    <span class="text-blue-600">{{ coord.current_patient }}</span>
+                    {{ coord.current_patient }}
                     {% else %}
                     <span class="text-gray-400">-</span>
                     {% endif %}
                 </td>
-                <td class="py-3 text-center">
+                <td class="px-4 py-2 text-center">
                     {% if coord.current_status == '空閒' %}
                     <span class="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs">空閒</span>
                     {% elif coord.current_status == '檢查中' %}
@@ -36,19 +37,14 @@
                     <span class="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs">進行中</span>
                     {% endif %}
                 </td>
-                <td class="py-3 text-center">
-                    <span class="font-medium">{{ coord.total_assignments }}</span>
-                </td>
-                <td class="py-3 text-center">
-                    <span class="text-gray-600">{{ coord.operations }}</span>
-                </td>
+                <td class="px-4 py-2 text-center text-gray-600">{{ coord.operations }}</td>
             </tr>
             {% endfor %}
             
             {% if not coordinator_stats %}
             <tr>
-                <td colspan="5" class="py-8 text-center text-gray-400">
-                    尚無個管師資料
+                <td colspan="5" class="px-4 py-8 text-center text-gray-400">
+                    尚無專員資料
                 </td>
             </tr>
             {% endif %}

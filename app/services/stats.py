@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 統計服務 - 報表與數據分析
+（已更新：個管師 → 專員）
 """
 
 from datetime import date, datetime, timedelta
@@ -9,7 +10,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, and_
 
 from ..models.patient import Patient
-from ..models.user import User, Permission
+from ..models.user import User, UserRole
 from ..models.exam import Exam
 from ..models.tracking import PatientTracking, TrackingHistory, CoordinatorAssignment, TrackingStatus
 from ..models.equipment import Equipment, EquipmentLog, EquipmentStatus
@@ -50,7 +51,7 @@ def get_daily_summary(db: Session, target_date: date = None) -> Dict:
         Equipment.is_active == True
     ).count()
     
-    # 個管師統計 - 使用新的權限系統
+    # 專員統計（原個管師）
     active_coordinators = db.query(CoordinatorAssignment).filter(
         CoordinatorAssignment.exam_date == target_date,
         CoordinatorAssignment.is_active == True
@@ -123,20 +124,21 @@ def get_station_statistics(db: Session, target_date: date = None) -> List[Dict]:
             "waiting": waiting_count,
             "in_exam": in_exam_count,
             "equipment_status": equipment_status,
-            "duration_minutes": exam.duration_min,
+            "duration_minutes": exam.duration_minutes,
         })
     
     return stats
 
 
 def get_coordinator_statistics(db: Session, target_date: date = None) -> List[Dict]:
-    """取得個管師工作統計"""
+    """取得專員工作統計（原個管師）"""
     if target_date is None:
         target_date = date.today()
     
-    # 取得所有有個管師權限的使用者
-    all_users = db.query(User).filter(User.is_active == True).all()
-    coordinators = [u for u in all_users if u.is_coordinator]
+    coordinators = db.query(User).filter(
+        User.role == UserRole.COORDINATOR.value,
+        User.is_active == True
+    ).all()
     
     stats = []
     
@@ -267,7 +269,8 @@ def export_daily_report_csv(db: Session, target_date: date = None) -> str:
         Patient.is_active == True
     ).all()
     
-    lines = ["病歷號,姓名,檢查項目,狀態,位置,個管師,最後更新"]
+    # 更新：個管師 → 專員
+    lines = ["病歷號,姓名,檢查項目,狀態,位置,專員,最後更新"]
     
     for patient in patients:
         tracking = db.query(PatientTracking).filter(
@@ -296,6 +299,6 @@ def export_daily_report_csv(db: Session, target_date: date = None) -> str:
             location = tracking.current_location or "-"
             updated = tracking.updated_at.strftime("%H:%M") if tracking.updated_at else "-"
         
-        lines.append(f"{patient.chart_no},{patient.name},{patient.notes or '-'},{status},{location},{coordinator_name},{updated}")
+        lines.append(f"{patient.chart_no},{patient.name},{patient.exam_list or '-'},{status},{location},{coordinator_name},{updated}")
     
     return "\n".join(lines)

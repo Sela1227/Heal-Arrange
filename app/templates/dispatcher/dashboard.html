@@ -1,207 +1,139 @@
 {% extends "base.html" %}
 
-{% block title %}調度員主控台 - 高檢病人動態系統{% endblock %}
+{% block title %}調度台 - 高檢病人動態系統{% endblock %}
 
 {% block content %}
-<div class="mb-6 flex justify-between items-center">
-    <h1 class="text-2xl font-bold text-gray-800">📋 調度員主控台</h1>
-    <span class="text-gray-500">{{ today }}</span>
-</div>
-
-<!-- 故障設備警示 -->
-{% if broken_equipment %}
-<div class="bg-red-50 border-2 border-red-300 rounded-xl p-4 mb-6"
-     hx-get="/dispatcher/api/broken-equipment"
-     hx-trigger="every 10s"
-     hx-swap="outerHTML">
-    <div class="flex items-center justify-between">
-        <div class="flex items-center">
-            <span class="text-2xl mr-3">⚠️</span>
-            <div>
-                <div class="font-bold text-red-700">設備故障警示</div>
-                <div class="text-sm text-red-600">
-                    {% for eq in broken_equipment %}
-                    <span class="inline-block mr-2">
-                        🔴 {{ eq.name }} ({{ exams_dict[eq.location].name if eq.location in exams_dict else eq.location }})
-                    </span>
-                    {% endfor %}
-                </div>
-            </div>
+<div class="mb-4 flex justify-between items-center">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-800">📊 調度台</h1>
+        <p class="text-gray-500">{{ today.strftime('%Y年%m月%d日') }}</p>
+    </div>
+    <div class="flex items-center space-x-4">
+        <!-- 統計 -->
+        <div class="flex space-x-2 text-sm">
+            <span class="px-2 py-1 bg-blue-100 text-blue-700 rounded">總計 {{ stats.total }}</span>
+            <span class="px-2 py-1 bg-green-100 text-green-700 rounded">完成 {{ stats.completed }}</span>
+            <span class="px-2 py-1 bg-yellow-100 text-yellow-700 rounded">進行 {{ stats.in_progress }}</span>
+            <span class="px-2 py-1 bg-gray-100 text-gray-600 rounded">未開始 {{ stats.not_started }}</span>
         </div>
-        <a href="/admin/equipment" class="text-red-600 hover:text-red-800 text-sm">
-            前往處理 →
-        </a>
     </div>
 </div>
-{% endif %}
 
-<!-- 統計卡片 -->
-<div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-    <div class="bg-white rounded-xl shadow p-4">
-        <div class="text-3xl font-bold text-blue-600">{{ stats.total }}</div>
-        <div class="text-gray-500 text-sm">今日病人</div>
-    </div>
-    <div class="bg-white rounded-xl shadow p-4">
-        <div class="text-3xl font-bold text-green-600">{{ stats.completed }}</div>
-        <div class="text-gray-500 text-sm">已完成</div>
-    </div>
-    <div class="bg-white rounded-xl shadow p-4">
-        <div class="text-3xl font-bold text-yellow-600">{{ stats.in_progress }}</div>
-        <div class="text-gray-500 text-sm">進行中</div>
-    </div>
-    <div class="bg-white rounded-xl shadow p-4">
-        <div class="text-3xl font-bold text-gray-600">{{ stats.not_started }}</div>
-        <div class="text-gray-500 text-sm">未開始</div>
-    </div>
+<!-- 故障警示（HTMX 即時更新） -->
+<div id="broken-alert"
+     hx-get="/dispatcher/api/broken-equipment"
+     hx-trigger="every 5s"
+     hx-swap="innerHTML">
+    {% include "partials/broken_alert.html" %}
+</div>
+
+<!-- 設備故障回報 -->
+<div class="bg-white rounded-xl shadow p-4 mb-4">
+    <form action="/dispatcher/report-equipment-failure" method="POST" class="flex items-center gap-4">
+        <span class="text-gray-600">⚠️ 設備故障回報：</span>
+        <select name="equipment_id" required class="border rounded-lg px-3 py-2">
+            <option value="">選擇設備</option>
+            {% for eq in all_equipment %}
+            <option value="{{ eq.id }}">{{ eq.name }} ({{ eq.location }})</option>
+            {% endfor %}
+        </select>
+        <input type="text" name="description" placeholder="故障描述（選填）" 
+               class="border rounded-lg px-3 py-2 flex-1">
+        <button type="submit" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg">
+            回報故障
+        </button>
+    </form>
 </div>
 
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
     <!-- 左側：病人列表 -->
     <div class="lg:col-span-2">
         <div class="bg-white rounded-xl shadow overflow-hidden">
-            <div class="px-4 py-3 bg-gray-50 border-b flex justify-between items-center">
-                <span class="font-bold text-gray-700">📋 今日病人</span>
-                <button onclick="location.reload()" 
-                        class="text-blue-500 hover:text-blue-700 text-sm">
-                    🔄 重新整理
-                </button>
+            <div class="px-4 py-3 bg-gray-50 border-b font-bold text-gray-700 flex justify-between items-center">
+                <span>📋 今日病人列表</span>
+                <span class="text-sm font-normal text-gray-500">共 {{ patient_list|length }} 人</span>
             </div>
             
-            <div class="overflow-x-auto">
-                <table class="w-full text-sm">
-                    <thead class="bg-gray-50">
-                        <tr>
-                            <th class="px-3 py-2 text-left">病人</th>
-                            <th class="px-3 py-2 text-left">狀態</th>
-                            <th class="px-3 py-2 text-left">位置</th>
-                            <th class="px-3 py-2 text-left">個管師</th>
-                            <th class="px-3 py-2 text-left">下一站</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-gray-200">
-                        {% for info in patient_list %}
-                        {% set patient = info.patient %}
-                        {% set tracking = info.tracking %}
-                        {% set assignment = info.assignment %}
-                        {% set coordinator = info.coordinator %}
-                        <tr class="hover:bg-gray-50">
-                            <td class="px-3 py-2">
-                                <div class="font-medium">{{ patient.name }}</div>
-                                <div class="text-xs text-gray-400">{{ patient.chart_no }}</div>
-                            </td>
-                            <td class="px-3 py-2">
-                                {% if tracking %}
-                                    {% if tracking.current_status == 'completed' %}
-                                    <span class="px-2 py-1 bg-green-100 text-green-800 rounded text-xs">✅ 完成</span>
-                                    {% elif tracking.current_status == 'in_exam' %}
-                                    <span class="px-2 py-1 bg-red-100 text-red-800 rounded text-xs">🔬 檢查中</span>
-                                    {% elif tracking.current_status == 'waiting' %}
-                                    <span class="px-2 py-1 bg-yellow-100 text-yellow-800 rounded text-xs">⏳ 等候</span>
-                                    {% elif tracking.current_status == 'moving' %}
-                                    <span class="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs">🚶 移動</span>
-                                    {% else %}
-                                    <span class="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs">{{ tracking.current_status }}</span>
-                                    {% endif %}
-                                {% else %}
-                                <span class="px-2 py-1 bg-gray-100 text-gray-500 rounded text-xs">未開始</span>
-                                {% endif %}
-                            </td>
-                            <td class="px-3 py-2 text-gray-600">
-                                {% if tracking and tracking.current_location %}
-                                {{ tracking.current_location }}
-                                {% else %}
-                                大廳
-                                {% endif %}
-                            </td>
-                            <td class="px-3 py-2">
-                                {% if coordinator %}
-                                <span class="text-green-600">{{ coordinator.display_name }}</span>
-                                {% else %}
-                                <form action="/dispatcher/assign-coordinator" method="POST" class="inline">
-                                    <input type="hidden" name="patient_id" value="{{ patient.id }}">
-                                    <select name="coordinator_id" onchange="this.form.submit()"
-                                            class="text-xs border rounded px-1 py-0.5">
-                                        <option value="">指派...</option>
-                                        {% for c in coordinators %}
-                                        <option value="{{ c.id }}">{{ c.display_name }}</option>
-                                        {% endfor %}
-                                    </select>
-                                </form>
-                                {% endif %}
-                            </td>
-                            <td class="px-3 py-2">
-                                {% if tracking and tracking.current_status != 'completed' %}
-                                <form action="/dispatcher/assign-station" method="POST" class="inline">
-                                    <input type="hidden" name="patient_id" value="{{ patient.id }}">
-                                    <select name="exam_code" onchange="this.form.submit()"
-                                            class="text-xs border rounded px-1 py-0.5">
-                                        <option value="">
-                                            {% if tracking.next_exam_code %}
-                                            {{ tracking.next_exam_code }}
-                                            {% else %}
-                                            指派下一站...
-                                            {% endif %}
-                                        </option>
-                                        {% for e in exams %}
-                                        <option value="{{ e.exam_code }}">{{ e.exam_code }} - {{ e.name }}</option>
-                                        {% endfor %}
-                                    </select>
-                                </form>
-                                {% elif tracking and tracking.current_status == 'completed' %}
-                                <span class="text-green-500 text-xs">已完成</span>
-                                {% else %}
-                                <span class="text-gray-400 text-xs">-</span>
-                                {% endif %}
-                            </td>
-                        </tr>
-                        {% endfor %}
-                        
-                        {% if not patient_list %}
-                        <tr>
-                            <td colspan="5" class="px-3 py-8 text-center text-gray-500">
-                                今日尚無病人資料
-                            </td>
-                        </tr>
-                        {% endif %}
-                    </tbody>
-                </table>
+            <div id="patient-table"
+                 class="overflow-x-auto max-h-[600px] overflow-y-auto"
+                 hx-get="/dispatcher/api/patients"
+                 hx-trigger="every 5s"
+                 hx-swap="innerHTML">
+                {% include "partials/patient_table.html" %}
             </div>
         </div>
     </div>
     
-    <!-- 右側：檢查站狀態 + 設備回報 -->
-    <div class="space-y-6">
-        <!-- 檢查站狀態 -->
-        <div hx-get="/dispatcher/api/stations" 
-             hx-trigger="every 5s" 
-             hx-swap="innerHTML">
-            {% include "partials/station_cards.html" %}
+    <!-- 右側：檢查站狀態 -->
+    <div>
+        <div class="bg-white rounded-xl shadow overflow-hidden">
+            <div class="px-4 py-3 bg-gray-50 border-b font-bold text-gray-700">
+                🏥 檢查站狀態
+            </div>
+            
+            <div id="station-cards"
+                 class="p-4 space-y-3 max-h-[600px] overflow-y-auto"
+                 hx-get="/dispatcher/api/stations"
+                 hx-trigger="every 5s"
+                 hx-swap="innerHTML">
+                {% include "partials/station_cards.html" %}
+            </div>
         </div>
         
-        <!-- 設備故障回報 -->
-        <div class="bg-white rounded-xl shadow p-4">
-            <div class="font-bold text-gray-700 mb-3">🔧 回報設備故障</div>
-            <form action="/dispatcher/report-equipment-failure" method="POST" class="space-y-3">
-                <select name="equipment_id" required
-                        class="w-full border rounded-lg px-3 py-2 text-sm">
-                    <option value="">選擇故障設備...</option>
-                    {% for eq in all_equipment %}
-                    {% if eq.status != 'broken' %}
-                    <option value="{{ eq.id }}">
-                        {{ eq.name }} ({{ exams_dict[eq.location].name if eq.location in exams_dict else eq.location }})
-                    </option>
-                    {% endif %}
-                    {% endfor %}
-                </select>
-                <input type="text" name="description" 
-                       placeholder="故障說明（選填）"
-                       class="w-full border rounded-lg px-3 py-2 text-sm">
-                <button type="submit"
-                        class="w-full bg-red-500 hover:bg-red-600 text-white py-2 rounded-lg text-sm font-medium">
-                    🚨 回報故障
-                </button>
-            </form>
+        <!-- 專員狀態（原個管師狀態） -->
+        <div class="bg-white rounded-xl shadow overflow-hidden mt-4">
+            <div class="px-4 py-3 bg-gray-50 border-b font-bold text-gray-700">
+                👤 專員狀態
+            </div>
+            <div class="divide-y max-h-64 overflow-y-auto">
+                {% for coord in coordinators %}
+                <div class="px-4 py-2 flex items-center justify-between">
+                    <div class="flex items-center">
+                        {% if coord.picture_url %}
+                        <img src="{{ coord.picture_url }}" alt="" class="w-8 h-8 rounded-full mr-2">
+                        {% else %}
+                        <div class="w-8 h-8 rounded-full bg-green-100 mr-2 flex items-center justify-center text-green-600">
+                            👤
+                        </div>
+                        {% endif %}
+                        <span>{{ coord.display_name }}</span>
+                    </div>
+                    <span class="text-xs text-gray-400">
+                        {% set has_patient = false %}
+                        {% for info in patient_list %}
+                            {% if info.coordinator and info.coordinator.id == coord.id %}
+                                {% set has_patient = true %}
+                            {% endif %}
+                        {% endfor %}
+                        {% if has_patient %}
+                        <span class="px-2 py-1 bg-green-100 text-green-700 rounded">服務中</span>
+                        {% else %}
+                        <span class="px-2 py-1 bg-gray-100 text-gray-500 rounded">空閒</span>
+                        {% endif %}
+                    </span>
+                </div>
+                {% endfor %}
+                
+                {% if not coordinators %}
+                <div class="px-4 py-8 text-center text-gray-400">
+                    尚無專員帳號
+                </div>
+                {% endif %}
+            </div>
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// HTMX 請求時添加 loading 效果
+document.body.addEventListener('htmx:beforeRequest', function(evt) {
+    evt.detail.elt.classList.add('loading');
+});
+
+document.body.addEventListener('htmx:afterRequest', function(evt) {
+    evt.detail.elt.classList.remove('loading');
+});
+</script>
 {% endblock %}

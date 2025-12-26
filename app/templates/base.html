@@ -4,64 +4,122 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}高檢病人動態系統{% endblock %}</title>
+    
+    <!-- TailwindCSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- HTMX -->
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
-    {% block extra_head %}{% endblock %}
+    
+    <style>
+        /* 自定義樣式 */
+        .loading {
+            opacity: 0.5;
+            pointer-events: none;
+        }
+        
+        /* 模擬模式時的視覺提示 */
+        {% if is_impersonating %}
+        body {
+            border: 3px solid #dc2626;
+        }
+        {% endif %}
+    </style>
+    
+    {% block head %}{% endblock %}
 </head>
 <body class="bg-gray-100 min-h-screen">
-{% block body %}
-    <!-- 導航欄 -->
-    <nav class="bg-blue-600 text-white shadow-lg">
-        <div class="max-w-7xl mx-auto px-4">
-            <div class="flex justify-between items-center h-14">
-                <!-- Logo -->
-                <a href="/" class="font-bold text-lg">🏥 高檢追蹤</a>
-                
-                <!-- 角色切換（僅管理員可見） -->
-                {% if user and user.role == 'admin' %}
-                <div class="flex items-center space-x-1">
-                    <span class="text-blue-200 text-xs mr-2">切換視圖:</span>
-                    <a href="/admin" 
-                       class="px-3 py-1 rounded text-sm {% if '/admin' in request.url.path %}bg-blue-800{% else %}hover:bg-blue-700{% endif %}">
-                        👑 管理
-                    </a>
-                    <a href="/dispatcher" 
-                       class="px-3 py-1 rounded text-sm {% if '/dispatcher' in request.url.path %}bg-blue-800{% else %}hover:bg-blue-700{% endif %}">
-                        📋 調度
-                    </a>
-                    <a href="/coordinator" 
-                       class="px-3 py-1 rounded text-sm {% if '/coordinator' in request.url.path %}bg-blue-800{% else %}hover:bg-blue-700{% endif %}">
-                        👤 個管
-                    </a>
+    
+    <!-- 模擬提示條 -->
+    {% if is_impersonating %}
+    <div id="impersonate-bar" 
+         class="fixed top-0 left-0 right-0 bg-red-600 text-white py-2 px-4 z-50 shadow-lg">
+        <div class="max-w-7xl mx-auto flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <span class="text-2xl animate-pulse">🎭</span>
+                <div>
+                    <span class="font-bold">模擬模式</span>
+                    <span class="mx-2">|</span>
+                    <span>{{ impersonate_role_name }}</span>
+                    <span class="mx-1">-</span>
+                    <span class="font-medium">{{ impersonate_user_name }}</span>
                 </div>
-                {% endif %}
+            </div>
+            <form action="/admin/impersonate/end" method="POST" class="inline">
+                <button type="submit" 
+                        class="bg-white text-red-600 px-4 py-1 rounded font-bold hover:bg-red-100 transition">
+                    🛑 結束模擬
+                </button>
+            </form>
+        </div>
+    </div>
+    <!-- 佔位，避免內容被遮住 -->
+    <div class="h-12"></div>
+    {% endif %}
+    
+    <!-- 導覽列 -->
+    <nav class="bg-white shadow-sm {% if is_impersonating %}border-b-2 border-red-500{% endif %}">
+        <div class="max-w-7xl mx-auto px-4 py-3">
+            <div class="flex justify-between items-center">
+                <a href="/" class="text-xl font-bold text-blue-600">
+                    🏥 高檢動態系統
+                </a>
                 
-                <!-- 用戶資訊 -->
                 {% if user %}
-                <div class="flex items-center space-x-3">
-                    <div class="text-right hidden sm:block">
-                        <div class="text-sm font-medium">{{ user.display_name }}</div>
-                        <div class="text-xs text-blue-200">
-                            {% if user.role == 'admin' %}👑 管理員
-                            {% elif user.role == 'dispatcher' %}📋 調度員
-                            {% elif user.role == 'coordinator' %}👤 個管師
-                            {% else %}⏳ {{ user.role }}{% endif %}
-                        </div>
+                <div class="flex items-center space-x-4">
+                    <!-- 角色標籤 -->
+                    {% if user.role == 'admin' %}
+                    <span class="px-2 py-1 bg-red-100 text-red-700 rounded text-sm">管理員</span>
+                    {% elif user.role == 'dispatcher' %}
+                    <span class="px-2 py-1 bg-blue-100 text-blue-700 rounded text-sm">調度員</span>
+                    {% elif user.role == 'coordinator' %}
+                    <span class="px-2 py-1 bg-green-100 text-green-700 rounded text-sm">專員</span>
+                    {% elif user.role == 'pending' %}
+                    <span class="px-2 py-1 bg-yellow-100 text-yellow-700 rounded text-sm">待審核</span>
+                    {% endif %}
+                    
+                    <!-- 用戶資訊 -->
+                    <div class="flex items-center space-x-2">
+                        {% if user.picture_url %}
+                        <img src="{{ user.picture_url }}" alt="" class="w-8 h-8 rounded-full">
+                        {% endif %}
+                        <span class="text-gray-700">{{ user.display_name or '用戶' }}</span>
                     </div>
-                    <a href="/auth/logout" 
-                       class="bg-blue-700 hover:bg-blue-800 px-3 py-1 rounded text-sm">
-                        登出
-                    </a>
+                    
+                    <!-- 快速導航 -->
+                    {% if user.role == 'admin' %}
+                    <a href="/admin" class="text-gray-500 hover:text-gray-700">管理</a>
+                    <a href="/dispatcher" class="text-gray-500 hover:text-gray-700">調度</a>
+                    {% elif user.role == 'dispatcher' %}
+                    <a href="/dispatcher" class="text-gray-500 hover:text-gray-700">調度台</a>
+                    {% elif user.role == 'coordinator' %}
+                    <a href="/coordinator" class="text-gray-500 hover:text-gray-700">我的病人</a>
+                    {% endif %}
+                    
+                    <a href="/auth/logout" class="text-red-500 hover:text-red-700">登出</a>
                 </div>
+                {% else %}
+                <a href="/auth/login" class="text-blue-500 hover:text-blue-700">登入</a>
                 {% endif %}
             </div>
         </div>
     </nav>
-
+    
     <!-- 主內容 -->
     <main class="max-w-7xl mx-auto px-4 py-6">
         {% block content %}{% endblock %}
     </main>
-{% endblock %}
+    
+    <!-- 頁尾 -->
+    <footer class="bg-white border-t mt-8 py-4">
+        <div class="max-w-7xl mx-auto px-4 text-center text-gray-500 text-sm">
+            彰濱秀傳高級健檢中心 © 2024
+            {% if is_impersonating %}
+            <span class="ml-4 text-red-500">🎭 模擬模式進行中</span>
+            {% endif %}
+        </div>
+    </footer>
+    
+    {% block scripts %}{% endblock %}
 </body>
 </html>

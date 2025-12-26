@@ -131,50 +131,44 @@
         </div>
     </a>
     
-    <!-- 效能儀表板（新功能） -->
-    <a href="/admin/dashboard" 
+    <!-- 角色模擬 (新增) -->
+    <a href="/admin/impersonate" 
        class="bg-white rounded-xl shadow p-6 hover:shadow-lg transition group border-2 border-purple-100">
         <div class="flex items-center mb-4">
-            <div class="text-4xl mr-4 group-hover:scale-110 transition">📈</div>
+            <div class="text-4xl mr-4 group-hover:scale-110 transition">🎭</div>
             <div>
-                <h3 class="font-bold text-lg text-gray-800">效能儀表板</h3>
-                <p class="text-sm text-gray-500">即時 KPI 與圖表</p>
+                <h3 class="font-bold text-lg text-gray-800">角色模擬</h3>
+                <p class="text-sm text-gray-500">切換視角查看其他角色畫面</p>
             </div>
         </div>
-    </a>
-    
-    <!-- 操作日誌（新功能） -->
-    <a href="/admin/audit" 
-       class="bg-white rounded-xl shadow p-6 hover:shadow-lg transition group">
-        <div class="flex items-center mb-4">
-            <div class="text-4xl mr-4 group-hover:scale-110 transition">📜</div>
-            <div>
-                <h3 class="font-bold text-lg text-gray-800">操作日誌</h3>
-                <p class="text-sm text-gray-500">系統操作記錄查詢</p>
-            </div>
+        <div class="bg-purple-50 text-purple-700 px-3 py-2 rounded-lg text-sm">
+            Debug 與培訓工具
         </div>
     </a>
-    
-    <!-- 資料備份（新功能） -->
-    <a href="/admin/backup" 
-       class="bg-white rounded-xl shadow p-6 hover:shadow-lg transition group">
-        <div class="flex items-center mb-4">
-            <div class="text-4xl mr-4 group-hover:scale-110 transition">💾</div>
-            <div>
-                <h3 class="font-bold text-lg text-gray-800">資料備份</h3>
-                <p class="text-sm text-gray-500">匯出與備份系統資料</p>
-            </div>
-        </div>
-    </a>
-    
-    <!-- 調度台 -->
+</div>
+
+<!-- 快速連結 -->
+<div class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+    <!-- 前往調度台 -->
     <a href="/dispatcher" 
-       class="bg-white rounded-xl shadow p-6 hover:shadow-lg transition group border-2 border-blue-100">
-        <div class="flex items-center mb-4">
-            <div class="text-4xl mr-4 group-hover:scale-110 transition">📡</div>
+       class="bg-blue-50 rounded-xl p-6 hover:bg-blue-100 transition border border-blue-200">
+        <div class="flex items-center">
+            <div class="text-4xl mr-4">📊</div>
             <div>
-                <h3 class="font-bold text-lg text-gray-800">前往調度台</h3>
-                <p class="text-sm text-gray-500">病人指派與即時監控</p>
+                <h3 class="font-bold text-lg text-blue-800">前往調度台</h3>
+                <p class="text-sm text-blue-600">病人指派與即時監控</p>
+            </div>
+        </div>
+    </a>
+    
+    <!-- 專員頁面預覽 -->
+    <a href="/coordinator" 
+       class="bg-green-50 rounded-xl p-6 hover:bg-green-100 transition border border-green-200">
+        <div class="flex items-center">
+            <div class="text-4xl mr-4">👤</div>
+            <div>
+                <h3 class="font-bold text-lg text-green-800">專員頁面</h3>
+                <p class="text-sm text-green-600">查看專員介面</p>
             </div>
         </div>
     </a>
