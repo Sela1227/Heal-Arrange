@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>自助報到 - 高檢病人動態系統</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+</head>
+<body class="bg-gradient-to-b from-blue-50 to-white min-h-screen">
+    <div class="max-w-md mx-auto px-4 py-8">
+        <!-- 標題 -->
+        <div class="text-center mb-8">
+            <div class="text-6xl mb-4">🏥</div>
+            <h1 class="text-2xl font-bold text-gray-800">彰濱秀傳高級健檢</h1>
+            <p class="text-gray-500 mt-2">自助報到系統</p>
+        </div>
+        
+        <!-- 病人資訊卡片 -->
+        <div class="bg-white rounded-2xl shadow-lg p-6 mb-6">
+            <div class="flex items-center mb-4">
+                <div class="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center text-3xl mr-4">
+                    👤
+                </div>
+                <div>
+                    <h2 class="text-xl font-bold text-gray-800">{{ patient.name }}</h2>
+                    <p class="text-gray-500">病歷號：{{ patient.chart_no }}</p>
+                </div>
+            </div>
+            
+            <div class="border-t pt-4">
+                <div class="flex justify-between text-sm mb-2">
+                    <span class="text-gray-500">檢查日期</span>
+                    <span class="font-medium">{{ patient.exam_date }}</span>
+                </div>
+                {% if patient.exam_list %}
+                <div class="flex justify-between text-sm">
+                    <span class="text-gray-500">檢查項目</span>
+                    <span class="font-medium">{{ patient.exam_list }}</span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        {% if already_checked_in %}
+        <!-- 已報到狀態 -->
+        <div class="bg-green-50 border border-green-200 rounded-2xl p-6 mb-6">
+            <div class="text-center">
+                <div class="text-5xl mb-4">✅</div>
+                <h3 class="text-xl font-bold text-green-800 mb-2">您已完成報到</h3>
+                <p class="text-green-600">
+                    目前位置：{{ tracking.current_location if tracking else '等候區' }}
+                </p>
+            </div>
+        </div>
+        
+        {% if wait_info %}
+        <!-- 等候資訊 -->
+        <div class="bg-white rounded-2xl shadow p-6 mb-6"
+             hx-get="/checkin/{{ token }}/status"
+             hx-trigger="every 30s"
+             hx-swap="innerHTML">
+            <div class="text-center">
+                <p class="text-gray-500 mb-2">預估等候時間</p>
+                <p class="text-4xl font-bold text-blue-600">
+                    {% if wait_info.estimated_wait <= 0 %}
+                    即將輪到
+                    {% elif wait_info.estimated_wait < 60 %}
+                    約 {{ wait_info.estimated_wait }} 分鐘
+                    {% else %}
+                    約 {{ wait_info.estimated_wait // 60 }} 小時
+                    {% endif %}
+                </p>
+                <p class="text-sm text-gray-400 mt-2">
+                    前面還有 {{ wait_info.waiting_count }} 人等候
+                </p>
+            </div>
+        </div>
+        {% endif %}
+        
+        {% else %}
+        <!-- 報到按鈕 -->
+        <form action="/checkin/{{ token }}" method="POST">
+            <button type="submit"
+                    class="w-full bg-blue-500 hover:bg-blue-600 text-white text-xl font-bold py-4 px-6 rounded-2xl shadow-lg transition transform hover:scale-105">
+                📍 確認報到
+            </button>
+        </form>
+        
+        <p class="text-center text-gray-400 text-sm mt-4">
+            點擊按鈕完成報到，之後請在等候區等候叫號
+        </p>
+        {% endif %}
+        
+        <!-- 注意事項 -->
+        <div class="bg-yellow-50 rounded-xl p-4 mt-8">
+            <h4 class="font-bold text-yellow-800 mb-2">📋 溫馨提醒</h4>
+            <ul class="text-sm text-yellow-700 space-y-1">
+                <li>• 請保持手機暢通，我們會透過 LINE 通知您</li>
+                <li>• 如需協助，請至服務台詢問</li>
+                <li>• 檢查過程中請勿飲食</li>
+            </ul>
+        </div>
+        
+        <!-- 底部 -->
+        <div class="text-center mt-8 text-gray-400 text-sm">
+            <p>彰濱秀傳紀念醫院</p>
+            <p>高級健檢中心</p>
+        </div>
+    </div>
+</body>
+</html>

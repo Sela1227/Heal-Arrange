@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>列印 QR Code - {{ exam_date }}</title>
+    <style>
+        @media print {
+            .no-print { display: none; }
+            .page-break { page-break-after: always; }
+        }
+        
+        body {
+            font-family: 'Microsoft JhengHei', 'Noto Sans TC', sans-serif;
+            margin: 0;
+            padding: 20px;
+        }
+        
+        .print-btn {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #3B82F6;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+        
+        .print-btn:hover {
+            background: #2563EB;
+        }
+        
+        .qr-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+        }
+        
+        .qr-card {
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            break-inside: avoid;
+        }
+        
+        .qr-card img {
+            width: 150px;
+            height: 150px;
+        }
+        
+        .patient-name {
+            font-size: 20px;
+            font-weight: bold;
+            margin: 10px 0 5px;
+        }
+        
+        .chart-no {
+            color: #6b7280;
+            font-size: 14px;
+        }
+        
+        .exam-date {
+            color: #3B82F6;
+            font-size: 12px;
+            margin-top: 10px;
+        }
+        
+        .hospital-name {
+            font-size: 11px;
+            color: #9ca3af;
+            margin-top: 8px;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #e5e7eb;
+        }
+        
+        .header h1 {
+            margin: 0;
+            color: #1f2937;
+        }
+        
+        .header p {
+            margin: 5px 0 0;
+            color: #6b7280;
+        }
+    </style>
+</head>
+<body>
+    <button class="print-btn no-print" onclick="window.print()">
+        🖨️ 列印
+    </button>
+    
+    <div class="header">
+        <h1>🏥 彰濱秀傳高級健檢中心</h1>
+        <p>自助報到 QR Code - {{ exam_date }}</p>
+    </div>
+    
+    <div class="qr-grid">
+        {% for item in qrcodes %}
+        <div class="qr-card">
+            <img src="data:image/png;base64,{{ item.qrcode.qrcode_base64 }}" alt="QR Code">
+            <div class="patient-name">{{ item.patient.name }}</div>
+            <div class="chart-no">病歷號：{{ item.patient.chart_no }}</div>
+            {% if item.patient.exam_list %}
+            <div class="chart-no">{{ item.patient.exam_list }}</div>
+            {% endif %}
+            <div class="exam-date">檢查日期：{{ item.patient.exam_date }}</div>
+            <div class="hospital-name">掃描 QR Code 完成自助報到</div>
+        </div>
+        {% endfor %}
+    </div>
+    
+    {% if not qrcodes %}
+    <div style="text-align: center; padding: 50px; color: #9ca3af;">
+        <p style="font-size: 48px;">📭</p>
+        <p>沒有病人資料</p>
+    </div>
+    {% endif %}
+    
+    <script>
+        // 自動觸發列印
+        // window.onload = function() { window.print(); }
+    </script>
+</body>
+</html>

@@ -1,24 +1,59 @@
-<!-- 檢查站狀態卡片 -->
-<div class="grid grid-cols-2 gap-3">
+<!-- 檢查站卡片（含等候時間） -->
+<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
     {% for exam_code, station in station_summary.items() %}
-    <div class="p-3 rounded-lg border {% if exam_code in broken_locations %}border-red-300 bg-red-50{% else %}bg-white{% endif %}">
+    <div class="bg-white rounded-xl shadow p-4 {% if exam_code in broken_locations %}border-2 border-red-300{% endif %}">
         <div class="flex justify-between items-start mb-2">
-            <span class="font-bold text-sm">{{ exam_code }}</span>
-            {% if exam_code in broken_locations %}
-            <span class="text-red-500 text-xs">🔴 故障</span>
+            <h4 class="font-bold text-gray-800">{{ station.exam.name }}</h4>
+            <span class="text-xs text-gray-400">{{ exam_code }}</span>
+        </div>
+        
+        <div class="space-y-2">
+            <!-- 等候人數 -->
+            <div class="flex justify-between text-sm">
+                <span class="text-gray-500">⏳ 等候中</span>
+                <span class="font-medium {% if station.waiting > 3 %}text-orange-500{% else %}text-gray-700{% endif %}">
+                    {{ station.waiting }} 人
+                </span>
+            </div>
+            
+            <!-- 檢查中 -->
+            <div class="flex justify-between text-sm">
+                <span class="text-gray-500">🔬 檢查中</span>
+                <span class="font-medium text-blue-600">
+                    {{ station.in_exam }} 人
+                </span>
+            </div>
+            
+            <!-- 預估等候時間 -->
+            {% if station.estimated_wait is defined %}
+            <div class="pt-2 border-t">
+                <div class="text-center">
+                    <span class="text-xs text-gray-400">預估等候</span>
+                    <p class="font-bold {% if station.estimated_wait > 30 %}text-red-500{% elif station.estimated_wait > 15 %}text-orange-500{% else %}text-green-500{% endif %}">
+                        {% if station.estimated_wait <= 0 %}
+                        無需等候
+                        {% elif station.estimated_wait < 60 %}
+                        約 {{ station.estimated_wait }} 分
+                        {% else %}
+                        約 {{ station.estimated_wait // 60 }}h{{ station.estimated_wait % 60 }}m
+                        {% endif %}
+                    </p>
+                </div>
+            </div>
             {% endif %}
         </div>
-        <div class="text-xs text-gray-500">{{ station.exam.name if station.exam else '' }}</div>
-        <div class="mt-2 flex justify-between text-xs">
-            <span class="text-yellow-600">⏳ {{ station.waiting }}</span>
-            <span class="text-red-600">🔬 {{ station.in_exam }}</span>
+        
+        {% if exam_code in broken_locations %}
+        <div class="mt-2 text-xs text-red-500 text-center">
+            🔴 設備故障
         </div>
+        {% endif %}
     </div>
     {% endfor %}
 </div>
 
 {% if not station_summary %}
-<div class="text-center text-gray-400 py-4 text-sm">
+<div class="text-center text-gray-400 py-8">
     尚無檢查站資料
 </div>
 {% endif %}

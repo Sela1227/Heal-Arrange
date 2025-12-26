@@ -1,0 +1,8 @@
+# Phase 6 新增依賴
+# 請加入現有的 requirements.txt
+
+# QR Code 生成
+qrcode[pil]==7.4.2
+
+# 圖片處理（qrcode 依賴）
+Pillow>=9.0.0

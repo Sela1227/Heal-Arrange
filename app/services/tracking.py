@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-追蹤服務 - 病人位置與狀態管理
+追蹤服務 - 病人位置與狀態管理（整合 LINE 推播）
 """
 
 from datetime import datetime, date
@@ -18,6 +18,7 @@ from ..models.tracking import (
     TrackingAction,
 )
 from ..models.exam import Exam
+from ..config import settings
 
 
 def get_today_patients(db: Session, exam_date: date = None) -> List[Patient]:
@@ -40,13 +41,11 @@ def get_patient_with_tracking(db: Session, patient_id: int, exam_date: date = No
     if not patient:
         return None
     
-    # 取得追蹤資訊
     tracking = db.query(PatientTracking).filter(
         PatientTracking.patient_id == patient_id,
         PatientTracking.exam_date == exam_date
     ).first()
     
-    # 取得指派的個管師
     assignment = db.query(CoordinatorAssignment).filter(
         CoordinatorAssignment.patient_id == patient_id,
         CoordinatorAssignment.exam_date == exam_date,
@@ -66,7 +65,7 @@ def get_patient_with_tracking(db: Session, patient_id: int, exam_date: date = No
 
 
 def get_coordinator_patient(db: Session, coordinator_id: int, exam_date: date = None) -> Dict:
-    """取得個管師負責的病人"""
+    """取得專員負責的病人"""
     if exam_date is None:
         exam_date = date.today()
     
@@ -82,14 +81,15 @@ def get_coordinator_patient(db: Session, coordinator_id: int, exam_date: date = 
     return get_patient_with_tracking(db, assignment.patient_id, exam_date)
 
 
-def assign_coordinator(
+async def assign_coordinator(
     db: Session,
     patient_id: int,
     coordinator_id: int,
     assigned_by: int,
-    exam_date: date = None
+    exam_date: date = None,
+    send_notification: bool = True,
 ) -> CoordinatorAssignment:
-    """指派個管師給病人"""
+    """指派專員給病人（含 LINE 推播）"""
     if exam_date is None:
         exam_date = date.today()
     
@@ -100,7 +100,7 @@ def assign_coordinator(
         CoordinatorAssignment.is_active == True
     ).update({"is_active": False})
     
-    # 取消該個管師現有的指派（一對一）
+    # 取消該專員現有的指派（一對一）
     db.query(CoordinatorAssignment).filter(
         CoordinatorAssignment.coordinator_id == coordinator_id,
         CoordinatorAssignment.exam_date == exam_date,
@@ -123,28 +123,32 @@ def assign_coordinator(
         exam_date=exam_date,
         action=TrackingAction.ASSIGN.value,
         operator_id=assigned_by,
-        notes=f"指派個管師 ID:{coordinator_id}",
+        notes=f"指派專員 ID:{coordinator_id}",
     )
     db.add(history)
     
     db.commit()
     db.refresh(assignment)
     
+    # 發送 LINE 推播通知
+    if send_notification and settings.NOTIFY_ON_ASSIGNMENT:
+        await _send_assignment_notification(db, patient_id, coordinator_id)
+    
     return assignment
 
 
-def assign_next_station(
+async def assign_next_station(
     db: Session,
     patient_id: int,
     next_exam_code: str,
     assigned_by: int,
-    exam_date: date = None
+    exam_date: date = None,
+    send_notification: bool = True,
 ) -> PatientTracking:
-    """指派病人下一站"""
+    """指派病人下一站（含 LINE 推播）"""
     if exam_date is None:
         exam_date = date.today()
     
-    # 取得或建立追蹤記錄
     tracking = db.query(PatientTracking).filter(
         PatientTracking.patient_id == patient_id,
         PatientTracking.exam_date == exam_date
@@ -162,7 +166,6 @@ def assign_next_station(
     tracking.updated_by = assigned_by
     tracking.updated_at = datetime.utcnow()
     
-    # 記錄歷程
     history = TrackingHistory(
         patient_id=patient_id,
         exam_date=exam_date,
@@ -174,6 +177,10 @@ def assign_next_station(
     
     db.commit()
     db.refresh(tracking)
+    
+    # 發送 LINE 推播通知
+    if send_notification and settings.NOTIFY_ON_NEXT_STATION:
+        await _send_next_station_notification(db, patient_id, next_exam_code, exam_date)
     
     return tracking
 
@@ -187,11 +194,10 @@ def update_patient_status(
     exam_date: date = None,
     notes: str = None
 ) -> PatientTracking:
-    """更新病人狀態（個管師回報）"""
+    """更新病人狀態"""
     if exam_date is None:
         exam_date = date.today()
     
-    # 取得或建立追蹤記錄
     tracking = db.query(PatientTracking).filter(
         PatientTracking.patient_id == patient_id,
         PatientTracking.exam_date == exam_date
@@ -204,7 +210,6 @@ def update_patient_status(
         )
         db.add(tracking)
     
-    # 判斷動作類型
     if new_status == TrackingStatus.WAITING.value:
         action = TrackingAction.ARRIVE.value
     elif new_status == TrackingStatus.IN_EXAM.value:
@@ -219,7 +224,6 @@ def update_patient_status(
     tracking.updated_by = operator_id
     tracking.updated_at = datetime.utcnow()
     
-    # 記錄歷程
     history = TrackingHistory(
         patient_id=patient_id,
         exam_date=exam_date,
@@ -238,7 +242,7 @@ def update_patient_status(
 
 
 def get_station_summary(db: Session, exam_date: date = None) -> Dict[str, Dict]:
-    """取得各檢查站的狀態摘要"""
+    """取得各檢查站的狀態摘要（含等候時間）"""
     if exam_date is None:
         exam_date = date.today()
     
@@ -246,7 +250,6 @@ def get_station_summary(db: Session, exam_date: date = None) -> Dict[str, Dict]:
     
     summary = {}
     for exam in exams:
-        # 統計該站的病人數
         waiting = db.query(PatientTracking).filter(
             PatientTracking.exam_date == exam_date,
             PatientTracking.current_location == exam.exam_code,
@@ -259,12 +262,17 @@ def get_station_summary(db: Session, exam_date: date = None) -> Dict[str, Dict]:
             PatientTracking.current_status == TrackingStatus.IN_EXAM.value
         ).count()
         
-        # 等待前往該站的病人
         pending = db.query(PatientTracking).filter(
             PatientTracking.exam_date == exam_date,
             PatientTracking.next_exam_code == exam.exam_code,
             PatientTracking.current_location != exam.exam_code
         ).count()
+        
+        # 計算預估等候時間
+        avg_duration = exam.duration_min if hasattr(exam, 'duration_min') else 15
+        estimated_wait = waiting * avg_duration
+        if in_exam > 0:
+            estimated_wait += avg_duration // 2
         
         summary[exam.exam_code] = {
             "exam": exam,
@@ -272,6 +280,7 @@ def get_station_summary(db: Session, exam_date: date = None) -> Dict[str, Dict]:
             "in_exam": in_exam,
             "pending": pending,
             "total": waiting + in_exam,
+            "estimated_wait": estimated_wait,
         }
     
     return summary
@@ -286,3 +295,77 @@ def get_tracking_history(db: Session, patient_id: int, exam_date: date = None) -
         TrackingHistory.patient_id == patient_id,
         TrackingHistory.exam_date == exam_date
     ).order_by(TrackingHistory.timestamp.desc()).all()
+
+
+# =====================
+# LINE 推播通知（內部函數）
+# =====================
+
+async def _send_assignment_notification(db: Session, patient_id: int, coordinator_id: int):
+    """發送指派通知給專員"""
+    try:
+        from ..services import line_notify
+        
+        patient = db.query(Patient).filter(Patient.id == patient_id).first()
+        coordinator = db.query(User).filter(User.id == coordinator_id).first()
+        
+        if not patient or not coordinator or not coordinator.line_id:
+            return
+        
+        messages = line_notify.create_assignment_notification(
+            patient_name=patient.name,
+            patient_chart_no=patient.chart_no,
+            exam_list=patient.exam_list,
+        )
+        
+        await line_notify.send_push_message(coordinator.line_id, messages)
+    
+    except Exception as e:
+        print(f"發送指派通知失敗: {e}")
+
+
+async def _send_next_station_notification(
+    db: Session,
+    patient_id: int,
+    next_exam_code: str,
+    exam_date: date,
+):
+    """發送下一站通知給專員"""
+    try:
+        from ..services import line_notify
+        from ..services import wait_time as wait_time_service
+        
+        patient = db.query(Patient).filter(Patient.id == patient_id).first()
+        exam = db.query(Exam).filter(Exam.exam_code == next_exam_code).first()
+        
+        # 取得專員
+        assignment = db.query(CoordinatorAssignment).filter(
+            CoordinatorAssignment.patient_id == patient_id,
+            CoordinatorAssignment.exam_date == exam_date,
+            CoordinatorAssignment.is_active == True
+        ).first()
+        
+        if not assignment:
+            return
+        
+        coordinator = db.query(User).filter(User.id == assignment.coordinator_id).first()
+        
+        if not patient or not coordinator or not coordinator.line_id:
+            return
+        
+        # 取得等候時間
+        wait_info = wait_time_service.estimate_wait_time(db, next_exam_code, exam_date)
+        estimated_wait = wait_info["estimated_wait"] if wait_info else None
+        
+        station_name = exam.name if exam else next_exam_code
+        
+        messages = line_notify.create_next_station_notification(
+            patient_name=patient.name,
+            station_name=station_name,
+            estimated_wait=estimated_wait,
+        )
+        
+        await line_notify.send_push_message(coordinator.line_id, messages)
+    
+    except Exception as e:
+        print(f"發送下一站通知失敗: {e}")

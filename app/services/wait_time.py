@@ -3,126 +3,74 @@
 等候時間預估服務
 """
 
-from datetime import datetime, date, timedelta
-from typing import Dict, List, Optional
+from datetime import date, datetime, timedelta
+from typing import Dict, Optional, List
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, and_
 
-from ..models.patient import Patient
 from ..models.exam import Exam
 from ..models.tracking import PatientTracking, TrackingHistory, TrackingStatus
-from ..models.equipment import Equipment, EquipmentStatus
-
-
-def get_exam_average_duration(db: Session, exam_code: str, days: int = 7) -> int:
-    """
-    計算檢查項目的平均實際耗時（分鐘）
-    根據近 N 天的歷史記錄計算
-    """
-    cutoff = date.today() - timedelta(days=days)
-    
-    # 找出該檢查站的開始和完成記錄
-    starts = db.query(TrackingHistory).filter(
-        TrackingHistory.location == exam_code,
-        TrackingHistory.action == 'start',
-        TrackingHistory.exam_date >= cutoff
-    ).all()
-    
-    completes = db.query(TrackingHistory).filter(
-        TrackingHistory.location == exam_code,
-        TrackingHistory.action == 'complete',
-        TrackingHistory.exam_date >= cutoff
-    ).all()
-    
-    # 配對計算實際耗時
-    durations = []
-    for start in starts:
-        # 找同病人同日期的完成記錄
-        for complete in completes:
-            if (complete.patient_id == start.patient_id and 
-                complete.exam_date == start.exam_date and
-                complete.timestamp > start.timestamp):
-                duration = (complete.timestamp - start.timestamp).total_seconds() / 60
-                if 1 <= duration <= 120:  # 合理範圍 1-120 分鐘
-                    durations.append(duration)
-                break
-    
-    if durations:
-        return int(sum(durations) / len(durations))
-    
-    # 沒有歷史資料，返回預設時間
-    exam = db.query(Exam).filter(Exam.exam_code == exam_code).first()
-    return exam.duration_min if exam else 15
 
 
 def estimate_wait_time(
     db: Session,
     exam_code: str,
-    exam_date: date = None
+    exam_date: date = None,
 ) -> Dict:
     """
     預估某檢查站的等候時間
     
+    計算方式：
+    1. 取得該站目前等候人數
+    2. 取得該站平均檢查時間（預設或歷史數據）
+    3. 預估等候時間 = 等候人數 × 平均檢查時間
+    
     Returns:
         {
-            "exam_code": "CT",
-            "exam_name": "電腦斷層",
-            "waiting_count": 3,
-            "in_exam_count": 1,
-            "avg_duration": 30,
-            "estimated_wait": 45,  # 預估等候分鐘
-            "status": "normal" | "busy" | "very_busy"
+            "exam_code": str,
+            "waiting_count": int,
+            "in_exam_count": int,
+            "avg_duration": int,  # 分鐘
+            "estimated_wait": int,  # 分鐘
+            "estimated_ready_time": datetime,
         }
     """
     if exam_date is None:
         exam_date = date.today()
     
+    # 取得檢查項目資訊
     exam = db.query(Exam).filter(Exam.exam_code == exam_code).first()
     if not exam:
         return None
     
-    # 目前等候人數
+    # 統計等候人數
     waiting_count = db.query(PatientTracking).filter(
         PatientTracking.exam_date == exam_date,
         PatientTracking.current_location == exam_code,
-        PatientTracking.current_status == TrackingStatus.WAITING.value
+        PatientTracking.current_status == TrackingStatus.WAITING.value,
     ).count()
     
-    # 目前檢查中人數
+    # 統計檢查中人數
     in_exam_count = db.query(PatientTracking).filter(
         PatientTracking.exam_date == exam_date,
         PatientTracking.current_location == exam_code,
-        PatientTracking.current_status == TrackingStatus.IN_EXAM.value
+        PatientTracking.current_status == TrackingStatus.IN_EXAM.value,
     ).count()
     
-    # 平均檢查時間
-    avg_duration = get_exam_average_duration(db, exam_code)
+    # 取得平均檢查時間
+    avg_duration = get_average_duration(db, exam_code, exam_date)
+    if avg_duration is None:
+        # 使用預設時間
+        avg_duration = exam.duration_min if hasattr(exam, 'duration_min') else 15
     
-    # 預估等候時間 = 等候人數 * 平均時間 + (檢查中 ? 平均時間/2 : 0)
+    # 計算預估等候時間
+    # 如果有人在檢查中，假設還需要一半的時間
     estimated_wait = waiting_count * avg_duration
     if in_exam_count > 0:
-        estimated_wait += avg_duration // 2  # 假設檢查中的還要一半時間
+        estimated_wait += avg_duration // 2
     
-    # 設備狀態
-    equipment = db.query(Equipment).filter(
-        Equipment.location == exam_code,
-        Equipment.is_active == True
-    ).first()
-    
-    equipment_ok = True
-    if equipment and equipment.status == EquipmentStatus.BROKEN.value:
-        equipment_ok = False
-        estimated_wait = -1  # 設備故障，無法預估
-    
-    # 判斷忙碌程度
-    if not equipment_ok:
-        status = "broken"
-    elif waiting_count >= 5:
-        status = "very_busy"
-    elif waiting_count >= 2:
-        status = "busy"
-    else:
-        status = "normal"
+    # 計算預估開始時間
+    estimated_ready_time = datetime.now() + timedelta(minutes=estimated_wait)
     
     return {
         "exam_code": exam_code,
@@ -131,13 +79,69 @@ def estimate_wait_time(
         "in_exam_count": in_exam_count,
         "avg_duration": avg_duration,
         "estimated_wait": estimated_wait,
-        "equipment_ok": equipment_ok,
-        "status": status,
+        "estimated_ready_time": estimated_ready_time,
     }
 
 
-def estimate_all_stations(db: Session, exam_date: date = None) -> List[Dict]:
-    """預估所有檢查站的等候時間"""
+def get_average_duration(
+    db: Session,
+    exam_code: str,
+    exam_date: date = None,
+    days_back: int = 7,
+) -> Optional[int]:
+    """
+    取得某檢查站的平均檢查時間（根據歷史數據）
+    
+    計算方式：
+    1. 找出過去 N 天該站的「開始」和「完成」記錄
+    2. 計算每次檢查的時間差
+    3. 取平均值
+    """
+    if exam_date is None:
+        exam_date = date.today()
+    
+    start_date = exam_date - timedelta(days=days_back)
+    
+    # 取得該站的開始記錄
+    start_records = db.query(TrackingHistory).filter(
+        TrackingHistory.exam_date >= start_date,
+        TrackingHistory.exam_date <= exam_date,
+        TrackingHistory.location == exam_code,
+        TrackingHistory.action == 'start',
+    ).all()
+    
+    if not start_records:
+        return None
+    
+    durations = []
+    
+    for start in start_records:
+        # 找對應的完成記錄
+        complete = db.query(TrackingHistory).filter(
+            TrackingHistory.patient_id == start.patient_id,
+            TrackingHistory.exam_date == start.exam_date,
+            TrackingHistory.location == exam_code,
+            TrackingHistory.action == 'complete',
+            TrackingHistory.timestamp > start.timestamp,
+        ).first()
+        
+        if complete:
+            duration = (complete.timestamp - start.timestamp).total_seconds() / 60
+            # 過濾異常值（少於 1 分鐘或超過 2 小時）
+            if 1 <= duration <= 120:
+                durations.append(duration)
+    
+    if not durations:
+        return None
+    
+    return int(sum(durations) / len(durations))
+
+
+def get_all_stations_wait_time(
+    db: Session,
+    exam_date: date = None,
+) -> List[Dict]:
+    """取得所有檢查站的等候時間預估"""
     if exam_date is None:
         exam_date = date.today()
     
@@ -152,85 +156,90 @@ def estimate_all_stations(db: Session, exam_date: date = None) -> List[Dict]:
     return results
 
 
-def estimate_patient_remaining_time(
+def get_patient_queue_position(
     db: Session,
     patient_id: int,
-    exam_date: date = None
+    exam_code: str,
+    exam_date: date = None,
 ) -> Dict:
     """
-    預估病人剩餘總檢查時間
+    取得病人在某檢查站的排隊位置
     
     Returns:
         {
-            "total_exams": 5,
-            "completed_exams": 2,
-            "remaining_exams": 3,
-            "estimated_remaining": 90,  # 分鐘
-            "next_station_wait": 15,
+            "position": int,  # 排隊位置（1 = 下一個）
+            "estimated_wait": int,  # 預估等候分鐘
+            "people_ahead": int,  # 前面幾人
         }
     """
     if exam_date is None:
         exam_date = date.today()
     
-    patient = db.query(Patient).filter(Patient.id == patient_id).first()
-    if not patient or not patient.notes:
-        return None
-    
-    # 解析檢查項目（從 notes 欄位讀取）
-    exam_codes = [e.strip() for e in patient.notes.split(',') if e.strip()]
-    total_exams = len(exam_codes)
-    
-    # 已完成的檢查
-    completed = db.query(TrackingHistory).filter(
-        TrackingHistory.patient_id == patient_id,
-        TrackingHistory.exam_date == exam_date,
-        TrackingHistory.action == 'complete'
-    ).all()
-    completed_locations = set(h.location for h in completed)
-    completed_exams = len([e for e in exam_codes if e in completed_locations])
-    
-    # 剩餘檢查
-    remaining_codes = [e for e in exam_codes if e not in completed_locations]
-    remaining_exams = len(remaining_codes)
-    
-    # 預估剩餘時間
-    estimated_remaining = 0
-    for code in remaining_codes:
-        estimate = estimate_wait_time(db, code, exam_date)
-        if estimate and estimate["estimated_wait"] >= 0:
-            estimated_remaining += estimate["estimated_wait"] + estimate["avg_duration"]
-    
-    # 下一站等候時間
-    tracking = db.query(PatientTracking).filter(
+    # 取得該病人的追蹤資訊
+    patient_tracking = db.query(PatientTracking).filter(
         PatientTracking.patient_id == patient_id,
-        PatientTracking.exam_date == exam_date
+        PatientTracking.exam_date == exam_date,
     ).first()
     
-    next_station_wait = 0
-    if tracking and tracking.next_exam_code:
-        next_estimate = estimate_wait_time(db, tracking.next_exam_code, exam_date)
-        if next_estimate and next_estimate["estimated_wait"] >= 0:
-            next_station_wait = next_estimate["estimated_wait"]
+    if not patient_tracking:
+        return None
+    
+    # 取得所有在該站等候的病人（按到達時間排序）
+    waiting_patients = db.query(PatientTracking).filter(
+        PatientTracking.exam_date == exam_date,
+        PatientTracking.current_location == exam_code,
+        PatientTracking.current_status == TrackingStatus.WAITING.value,
+    ).order_by(PatientTracking.updated_at).all()
+    
+    # 找出病人位置
+    position = 0
+    for i, p in enumerate(waiting_patients):
+        if p.patient_id == patient_id:
+            position = i + 1
+            break
+    
+    if position == 0:
+        return None
+    
+    # 取得平均時間
+    exam = db.query(Exam).filter(Exam.exam_code == exam_code).first()
+    avg_duration = get_average_duration(db, exam_code, exam_date)
+    if avg_duration is None and exam:
+        avg_duration = exam.duration_min if hasattr(exam, 'duration_min') else 15
+    
+    people_ahead = position - 1
+    estimated_wait = people_ahead * (avg_duration or 15)
+    
+    # 如果有人在檢查中，加上剩餘時間
+    in_exam = db.query(PatientTracking).filter(
+        PatientTracking.exam_date == exam_date,
+        PatientTracking.current_location == exam_code,
+        PatientTracking.current_status == TrackingStatus.IN_EXAM.value,
+    ).first()
+    
+    if in_exam:
+        estimated_wait += (avg_duration or 15) // 2
     
     return {
-        "total_exams": total_exams,
-        "completed_exams": completed_exams,
-        "remaining_exams": remaining_exams,
-        "estimated_remaining": estimated_remaining,
-        "next_station_wait": next_station_wait,
+        "position": position,
+        "estimated_wait": estimated_wait,
+        "people_ahead": people_ahead,
+        "avg_duration": avg_duration or 15,
     }
 
 
 def format_wait_time(minutes: int) -> str:
     """格式化等候時間顯示"""
-    if minutes < 0:
-        return "無法預估"
-    if minutes == 0:
-        return "無需等候"
-    if minutes < 60:
+    if minutes <= 0:
+        return "即將開始"
+    elif minutes < 5:
+        return "約 5 分鐘內"
+    elif minutes < 60:
         return f"約 {minutes} 分鐘"
-    hours = minutes // 60
-    mins = minutes % 60
-    if mins == 0:
-        return f"約 {hours} 小時"
-    return f"約 {hours} 小時 {mins} 分"
+    else:
+        hours = minutes // 60
+        mins = minutes % 60
+        if mins == 0:
+            return f"約 {hours} 小時"
+        else:
+            return f"約 {hours} 小時 {mins} 分鐘"

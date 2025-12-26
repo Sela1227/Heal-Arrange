@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>報到成功 - 高檢病人動態系統</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gradient-to-b from-green-50 to-white min-h-screen">
+    <div class="max-w-md mx-auto px-4 py-8">
+        <!-- 成功動畫 -->
+        <div class="text-center mb-8">
+            <div class="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4 animate-bounce">
+                <span class="text-5xl">✅</span>
+            </div>
+            <h1 class="text-2xl font-bold text-green-800">報到成功！</h1>
+            <p class="text-gray-500 mt-2">歡迎蒞臨彰濱秀傳高級健檢中心</p>
+        </div>
+        
+        <!-- 病人資訊 -->
+        <div class="bg-white rounded-2xl shadow-lg p-6 mb-6">
+            <div class="text-center mb-4">
+                <h2 class="text-xl font-bold text-gray-800">{{ patient.name }}</h2>
+                <p class="text-gray-500">病歷號：{{ patient.chart_no }}</p>
+            </div>
+            
+            <div class="border-t pt-4">
+                <div class="flex justify-between items-center">
+                    <span class="text-gray-500">目前位置</span>
+                    <span class="px-3 py-1 bg-blue-100 text-blue-800 rounded-full font-medium">
+                        {{ tracking.current_location if tracking else '報到櫃檯' }}
+                    </span>
+                </div>
+            </div>
+        </div>
+        
+        {% if wait_info %}
+        <!-- 等候時間 -->
+        <div class="bg-blue-50 rounded-2xl p-6 mb-6">
+            <div class="text-center">
+                <p class="text-blue-600 mb-2">預估等候時間</p>
+                <p class="text-4xl font-bold text-blue-800">
+                    {% if wait_info.estimated_wait <= 0 %}
+                    即將開始
+                    {% elif wait_info.estimated_wait < 60 %}
+                    約 {{ wait_info.estimated_wait }} 分鐘
+                    {% else %}
+                    約 {{ wait_info.estimated_wait // 60 }} 小時 {{ wait_info.estimated_wait % 60 }} 分
+                    {% endif %}
+                </p>
+                <p class="text-sm text-blue-500 mt-2">
+                    目前等候人數：{{ wait_info.waiting_count }} 人
+                </p>
+            </div>
+        </div>
+        {% endif %}
+        
+        <!-- 下一步指引 -->
+        <div class="bg-white rounded-2xl shadow p-6 mb-6">
+            <h3 class="font-bold text-gray-800 mb-4">📋 接下來請您：</h3>
+            <ol class="space-y-3">
+                <li class="flex items-start">
+                    <span class="w-6 h-6 bg-blue-500 text-white rounded-full flex items-center justify-center text-sm mr-3 flex-shrink-0">1</span>
+                    <span class="text-gray-600">請至<strong>等候區</strong>就座</span>
+                </li>
+                <li class="flex items-start">
+                    <span class="w-6 h-6 bg-blue-500 text-white rounded-full flex items-center justify-center text-sm mr-3 flex-shrink-0">2</span>
+                    <span class="text-gray-600">我們會透過 <strong>LINE 通知</strong>您進行檢查</span>
+                </li>
+                <li class="flex items-start">
+                    <span class="w-6 h-6 bg-blue-500 text-white rounded-full flex items-center justify-center text-sm mr-3 flex-shrink-0">3</span>
+                    <span class="text-gray-600">聽到叫號後，請至指定檢查站報到</span>
+                </li>
+            </ol>
+        </div>
+        
+        <!-- 注意事項 -->
+        <div class="bg-yellow-50 rounded-xl p-4">
+            <h4 class="font-bold text-yellow-800 mb-2">⚠️ 注意事項</h4>
+            <ul class="text-sm text-yellow-700 space-y-1">
+                <li>• 請保持手機暢通</li>
+                <li>• 如需離開等候區，請告知服務人員</li>
+                <li>• 檢查前請勿進食（如需空腹）</li>
+            </ul>
+        </div>
+        
+        <!-- 底部 -->
+        <div class="text-center mt-8 text-gray-400 text-sm">
+            <p>祝您檢查順利！</p>
+            <p class="mt-2">彰濱秀傳紀念醫院 高級健檢中心</p>
+        </div>
+    </div>
+</body>
+</html>

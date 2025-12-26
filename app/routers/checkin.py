@@ -1,28 +1,22 @@
 # -*- coding: utf-8 -*-
 """
-報到路由 - QR Code 自助報到
+病人自助報到路由
 """
 
 from datetime import date
-from fastapi import APIRouter, Request, Depends, HTTPException
-from fastapi.responses import HTMLResponse, Response
+from fastapi import APIRouter, Request, Depends, HTTPException, Form
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..models.patient import Patient
-from ..services import checkin as checkin_service
+from ..models.tracking import PatientTracking, TrackingHistory, TrackingStatus, TrackingAction
+from ..services import qrcode_service
+from ..services import wait_time as wait_time_service
 
-router = APIRouter(prefix="/checkin", tags=["報到"])
+router = APIRouter(prefix="/checkin", tags=["自助報到"])
 templates = Jinja2Templates(directory="app/templates")
-
-
-def get_base_url(request: Request) -> str:
-    """取得基礎 URL"""
-    # 優先使用 X-Forwarded-Proto 和 X-Forwarded-Host
-    proto = request.headers.get("x-forwarded-proto", "https")
-    host = request.headers.get("x-forwarded-host", request.headers.get("host", "localhost"))
-    return f"{proto}://{host}"
 
 
 @router.get("/{token}", response_class=HTMLResponse)
@@ -31,76 +25,174 @@ async def checkin_page(
     token: str,
     db: Session = Depends(get_db),
 ):
-    """報到頁面（掃描 QR Code 後顯示）"""
+    """自助報到頁面"""
+    # 驗證 Token
+    token_data = qrcode_service.verify_checkin_token(token)
     
-    result = checkin_service.process_checkin(db, token)
+    if not token_data:
+        return templates.TemplateResponse("patient/checkin_error.html", {
+            "request": request,
+            "error": "無效或過期的報到連結",
+            "message": "請確認 QR Code 是否正確，或聯繫服務人員",
+        })
     
-    return templates.TemplateResponse("checkin/result.html", {
+    patient_id = token_data["patient_id"]
+    exam_date = token_data["exam_date"]
+    
+    # 取得病人資料
+    patient = db.query(Patient).filter(Patient.id == patient_id).first()
+    if not patient:
+        return templates.TemplateResponse("patient/checkin_error.html", {
+            "request": request,
+            "error": "找不到病人資料",
+            "message": "請聯繫服務人員協助",
+        })
+    
+    # 取得追蹤狀態
+    tracking = db.query(PatientTracking).filter(
+        PatientTracking.patient_id == patient_id,
+        PatientTracking.exam_date == exam_date,
+    ).first()
+    
+    # 判斷狀態
+    already_checked_in = False
+    if tracking and tracking.current_status != TrackingStatus.WAITING.value:
+        already_checked_in = True
+    
+    # 取得等候資訊
+    wait_info = None
+    if tracking and tracking.current_location:
+        wait_info = wait_time_service.estimate_wait_time(db, tracking.current_location, exam_date)
+    
+    return templates.TemplateResponse("patient/checkin.html", {
         "request": request,
-        "success": result["success"],
-        "message": result["message"],
-        "patient": result.get("patient"),
-        "already_checked_in": result.get("already_checked_in", False),
-        "tracking": result.get("tracking"),
+        "patient": patient,
+        "tracking": tracking,
+        "token": token,
+        "already_checked_in": already_checked_in,
+        "wait_info": wait_info,
+        "today": date.today(),
     })
 
 
-@router.get("/api/qrcode/{patient_id}")
-async def get_patient_qrcode(
+@router.post("/{token}")
+async def do_checkin(
     request: Request,
-    patient_id: int,
-    exam_date: str = None,
+    token: str,
     db: Session = Depends(get_db),
 ):
-    """取得病人 QR Code 圖片"""
+    """執行報到"""
+    # 驗證 Token
+    token_data = qrcode_service.verify_checkin_token(token)
     
-    if exam_date:
-        try:
-            target_date = date.fromisoformat(exam_date)
-        except:
-            target_date = date.today()
+    if not token_data:
+        raise HTTPException(status_code=400, detail="無效或過期的報到連結")
+    
+    patient_id = token_data["patient_id"]
+    exam_date = token_data["exam_date"]
+    
+    # 取得病人資料
+    patient = db.query(Patient).filter(Patient.id == patient_id).first()
+    if not patient:
+        raise HTTPException(status_code=404, detail="找不到病人資料")
+    
+    # 取得或建立追蹤記錄
+    tracking = db.query(PatientTracking).filter(
+        PatientTracking.patient_id == patient_id,
+        PatientTracking.exam_date == exam_date,
+    ).first()
+    
+    if not tracking:
+        tracking = PatientTracking(
+            patient_id=patient_id,
+            exam_date=exam_date,
+            current_status=TrackingStatus.WAITING.value,
+            current_location="REG",  # 預設在報到櫃檯
+        )
+        db.add(tracking)
     else:
-        target_date = date.today()
+        tracking.current_status = TrackingStatus.WAITING.value
+        if not tracking.current_location:
+            tracking.current_location = "REG"
     
-    base_url = get_base_url(request)
-    qr_image = checkin_service.get_patient_qrcode(db, patient_id, target_date, base_url)
-    
-    if not qr_image:
-        raise HTTPException(status_code=404, detail="病人不存在")
-    
-    return Response(
-        content=qr_image,
-        media_type="image/png",
-        headers={
-            "Content-Disposition": f"inline; filename=checkin_qr_{patient_id}.png"
-        }
+    # 記錄歷程
+    history = TrackingHistory(
+        patient_id=patient_id,
+        exam_date=exam_date,
+        action=TrackingAction.ARRIVE.value,
+        location=tracking.current_location,
+        status=TrackingStatus.WAITING.value,
+        notes="病人自助報到",
     )
+    db.add(history)
+    
+    db.commit()
+    
+    # 重導向到成功頁面
+    return RedirectResponse(url=f"/checkin/{token}/success", status_code=302)
 
 
-@router.get("/api/status/{patient_id}")
-async def get_checkin_status(
-    patient_id: int,
-    exam_date: str = None,
+@router.get("/{token}/success", response_class=HTMLResponse)
+async def checkin_success(
+    request: Request,
+    token: str,
     db: Session = Depends(get_db),
 ):
-    """取得病人報到狀態（API）"""
+    """報到成功頁面"""
+    token_data = qrcode_service.verify_checkin_token(token)
     
-    if exam_date:
-        try:
-            target_date = date.fromisoformat(exam_date)
-        except:
-            target_date = date.today()
-    else:
-        target_date = date.today()
+    if not token_data:
+        return templates.TemplateResponse("patient/checkin_error.html", {
+            "request": request,
+            "error": "無效的連結",
+        })
     
-    status = checkin_service.get_patient_checkin_status(db, patient_id, target_date)
+    patient = db.query(Patient).filter(Patient.id == token_data["patient_id"]).first()
+    tracking = db.query(PatientTracking).filter(
+        PatientTracking.patient_id == token_data["patient_id"],
+        PatientTracking.exam_date == token_data["exam_date"],
+    ).first()
     
-    return {
-        "patient_id": patient_id,
-        "exam_date": target_date.isoformat(),
-        "exists": status["exists"],
-        "checked_in": status["checked_in"],
-        "patient_name": status["patient"].name if status["patient"] else None,
-        "current_status": status["tracking"].current_status if status.get("tracking") else None,
-        "current_location": status["tracking"].current_location if status.get("tracking") else None,
-    }
+    # 取得等候資訊
+    wait_info = None
+    if tracking and tracking.current_location:
+        wait_info = wait_time_service.estimate_wait_time(
+            db, tracking.current_location, token_data["exam_date"]
+        )
+    
+    return templates.TemplateResponse("patient/checkin_success.html", {
+        "request": request,
+        "patient": patient,
+        "tracking": tracking,
+        "wait_info": wait_info,
+    })
+
+
+@router.get("/{token}/status", response_class=HTMLResponse)
+async def checkin_status(
+    request: Request,
+    token: str,
+    db: Session = Depends(get_db),
+):
+    """查看目前狀態（HTMX 更新）"""
+    token_data = qrcode_service.verify_checkin_token(token)
+    
+    if not token_data:
+        return HTMLResponse("<p class='text-red-500'>連結已失效</p>")
+    
+    tracking = db.query(PatientTracking).filter(
+        PatientTracking.patient_id == token_data["patient_id"],
+        PatientTracking.exam_date == token_data["exam_date"],
+    ).first()
+    
+    wait_info = None
+    if tracking and tracking.current_location:
+        wait_info = wait_time_service.estimate_wait_time(
+            db, tracking.current_location, token_data["exam_date"]
+        )
+    
+    return templates.TemplateResponse("patient/partials/status_card.html", {
+        "request": request,
+        "tracking": tracking,
+        "wait_info": wait_info,
+    })

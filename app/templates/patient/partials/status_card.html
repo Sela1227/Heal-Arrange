@@ -1,0 +1,55 @@
+<!-- 狀態更新卡片（HTMX 部分更新用） -->
+<div class="text-center">
+    {% if tracking %}
+    <div class="mb-4">
+        <p class="text-gray-500 mb-1">目前狀態</p>
+        <p class="text-lg font-bold">
+            {% if tracking.current_status == 'waiting' %}
+            ⏳ 等候中
+            {% elif tracking.current_status == 'in_exam' %}
+            🔬 檢查中
+            {% elif tracking.current_status == 'moving' %}
+            🚶 移動中
+            {% elif tracking.current_status == 'completed' %}
+            ✅ 已完成
+            {% else %}
+            {{ tracking.current_status }}
+            {% endif %}
+        </p>
+    </div>
+    
+    <div class="mb-4">
+        <p class="text-gray-500 mb-1">目前位置</p>
+        <p class="text-lg font-bold text-blue-600">
+            {{ tracking.current_location or '等候區' }}
+        </p>
+    </div>
+    
+    {% if tracking.next_exam_code %}
+    <div class="mb-4">
+        <p class="text-gray-500 mb-1">下一站</p>
+        <p class="text-lg font-bold text-green-600">
+            {{ tracking.next_exam_code }}
+        </p>
+    </div>
+    {% endif %}
+    {% endif %}
+    
+    {% if wait_info %}
+    <div class="bg-blue-50 rounded-lg p-4 mt-4">
+        <p class="text-blue-600 mb-1">預估等候時間</p>
+        <p class="text-2xl font-bold text-blue-800">
+            {% if wait_info.estimated_wait <= 0 %}
+            即將開始
+            {% elif wait_info.estimated_wait < 60 %}
+            約 {{ wait_info.estimated_wait }} 分鐘
+            {% else %}
+            約 {{ wait_info.estimated_wait // 60 }} 小時
+            {% endif %}
+        </p>
+        <p class="text-xs text-blue-400 mt-1">
+            前面 {{ wait_info.waiting_count }} 人等候
+        </p>
+    </div>
+    {% endif %}
+</div>
