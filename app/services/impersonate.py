@@ -214,7 +214,7 @@ def get_impersonation_context(request: Request, db: Session) -> Dict[str, Any]:
         if user_id:
             user = db.query(User).filter(User.id == user_id).first()
             if user:
-                user_name = user.display_name or user.line_user_id
+                user_name = user.display_name or user.line_id
     
     return {
         "is_impersonating": True,

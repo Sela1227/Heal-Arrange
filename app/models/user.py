@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-使用者模型 - 包含組長角色
+使用者模型 - 匹配現有資料庫結構
 """
 
 from datetime import datetime
@@ -43,20 +43,27 @@ def get_role_display_name(role: str) -> str:
 
 
 class User(Base):
-    """使用者"""
+    """使用者 - 匹配現有資料庫結構"""
     __tablename__ = "users"
     
     id = Column(Integer, primary_key=True, index=True)
-    line_user_id = Column(String(100), unique=True, nullable=False, index=True)
+    
+    # ⚠️ 使用現有欄位名稱 line_id（不是 line_user_id）
+    line_id = Column(String(100), unique=True, nullable=True, index=True)
+    
     display_name = Column(String(100), nullable=True)
     picture_url = Column(Text, nullable=True)
     
-    role = Column(String(20), default=UserRole.LEADER.value)  # 預設組長（測試）
+    role = Column(String(20), default=UserRole.LEADER.value)
     is_active = Column(Boolean, default=True)
     
     created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    last_login = Column(DateTime, nullable=True)
+    
+    # ⚠️ 使用現有欄位名稱 last_login_at（不是 last_login）
+    last_login_at = Column(DateTime, nullable=True)
+    
+    # ⚠️ 保留現有 permissions 欄位
+    permissions = Column(Text, nullable=True)
     
     def __repr__(self):
         return f"<User {self.display_name} ({self.role})>"
@@ -65,6 +72,25 @@ class User(Base):
     def role_display_name(self) -> str:
         """取得角色顯示名稱"""
         return get_role_display_name(self.role)
+    
+    # 兼容性別名
+    @property
+    def line_user_id(self):
+        """兼容舊程式碼"""
+        return self.line_id
+    
+    @line_user_id.setter
+    def line_user_id(self, value):
+        self.line_id = value
+    
+    @property
+    def last_login(self):
+        """兼容舊程式碼"""
+        return self.last_login_at
+    
+    @last_login.setter
+    def last_login(self, value):
+        self.last_login_at = value
     
     def can_access_dispatcher(self) -> bool:
         """是否可以存取調度台"""

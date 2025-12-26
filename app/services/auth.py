@@ -106,14 +106,15 @@ def get_or_create_user(db: Session, line_profile: Dict) -> User:
     display_name = line_profile.get("displayName", "未知")
     picture_url = line_profile.get("pictureUrl")
     
-    user = db.query(User).filter(User.line_user_id == line_user_id).first()
+    # ⚠️ 使用 line_id 欄位（匹配現有資料庫）
+    user = db.query(User).filter(User.line_id == line_user_id).first()
     
     if user:
         # 更新資料
         user.display_name = display_name
         if picture_url:
             user.picture_url = picture_url
-        user.last_login = datetime.utcnow()
+        user.last_login_at = datetime.utcnow()
         db.commit()
         db.refresh(user)
         return user
@@ -124,11 +125,11 @@ def get_or_create_user(db: Session, line_profile: Dict) -> User:
     default_role = get_default_user_role(db)
     
     user = User(
-        line_user_id=line_user_id,
+        line_id=line_user_id,  # ⚠️ 使用 line_id
         display_name=display_name,
         picture_url=picture_url,
-        role=default_role,  # 使用系統設定的預設角色
-        last_login=datetime.utcnow(),
+        role=default_role,
+        last_login_at=datetime.utcnow(),  # ⚠️ 使用 last_login_at
     )
     db.add(user)
     db.commit()
